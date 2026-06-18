@@ -1,0 +1,35 @@
+<!-- "<!doctype html>
+<html>
+    <head>
+      {% if title %}
+      <title>{{ title }} - Microblog</title>
+      {% else %}
+      <title>Welcome to Microblog</title>
+      {% endif %}
+    </head>
+    <body>
+        <div>Charweb: <a href="{{ url_for('index') }}">Home</a>
+            {% if current_user.is_anonymous %}
+            <a href="{{ url_for('login') }}">Login</a>
+            {% else %}
+            <a href="{{ url_for('logout') }}">Logout</a>
+            <a href="{{ url_for('user', username=current_user.username) }}">Profile</a>
+            {% endif %}
+            <a href="{{ url_for('explore') }}">Explore</a>
+
+        </div>
+        <hr>
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <ul>
+            {% for message in messages %}
+            <li>{{ message }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        {% endwith %}
+        <hr>
+        Here I'm using a with construct to assign the result of calling get_flashed_messages() to a messages variable, all in the context of the template. The get_flashed_messages() function comes from Flask, and returns a list of all the messages that have been registered with flash() previously. The conditional that follows checks if messages has some content, and in that case, a <ul> element is rendered with each message as a <li> list item. This style of rendering does not look great for status messages, but the topic of styling the web application will come later. An interesting property of these flashed messages is that once they are requested once through the get_flashed_messages function they are removed from the message list, so they appear only once after the flash() function is called
+        {% block content %}{% endblock %}
+    </body>
+</html>" -->

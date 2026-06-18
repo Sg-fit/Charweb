@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ _('User Activity Tracker') }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        #tracking-display {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-top: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #4CAF50;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        tr:hover {
+            background-color: #f0f0f0;
+        }
+        button {
+            background-color: #f44336;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #da190b;
+        }
+        .stats {
+            background-color: #e8f5e9;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .stat-item {
+            display: inline-block;
+            margin-right: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>📊 {{ _('User Activity Tracker') }}</h1>
+    
+    <div class="stats" id="stats-display"></div>
+    
+    <div id="tracking-display">
+        <p>{{ _('Loading tracking data...') }}</p>
+    </div>
+
+    <script src="{{ url_for('static', filename='track.js') }}"></script>
+    
+    <script>
+        const statsLabels = {
+            total: "{{ _('Total Actions:') }}",
+            clicks: "{{ _('Clicks:') }}",
+            keys: "{{ _('Key Presses:') }}",
+            scrolls: "{{ _('Scrolls:') }}"
+        };
+
+        // Display tracked data on page load
+        displayTrackedData();
+        
+        // Update the display every 1 second
+        setInterval(displayTrackedData, 1000);
+        
+        // Display statistics
+        function displayStats() {
+            const data = getTrackedData();
+            let clicks = 0, keys = 0, scrolls = 0;
+            
+            data.forEach(action => {
+                if (action.type === 'click') clicks++;
+                if (action.type === 'keydown') keys++;
+                if (action.type === 'scroll') scrolls++;
+            });
+            
+            const statsDiv = document.getElementById('stats-display');
+            statsDiv.innerHTML = `
+                <div class="stat-item"><strong>${statsLabels.total}</strong> ${data.length}</div>
+                <div class="stat-item"><strong>${statsLabels.clicks}</strong> ${clicks}</div>
+                <div class="stat-item"><strong>${statsLabels.keys}</strong> ${keys}</div>
+                <div class="stat-item"><strong>${statsLabels.scrolls}</strong> ${scrolls}</div>
+            `;
+        }
+        
+        // Update stats every 1 second
+        setInterval(displayStats, 1000);
+        displayStats();
+    </script>
+</body>
+</html>
+
+<!-- How to view/access localStorage:
+In Browser DevTools (easiest):
+
+Open DevTools (F12)
+Go to Application tab (or Storage for Firefox)
+Click Local Storage on left
+Select your website
+See all stored data as key-value pairs
+In JavaScript:
+// View data
+getTrackedData()  // Shows your tracking data
+
+// Or directly
+localStorage.getItem("userTrackingData")
+So localStorage is not a file you can edit directly — it's a browser storage system managed entirely through JavaScript. -->
