@@ -1,0 +1,67 @@
+#before starting to use the code, type the following in to the terminal
+# >>> from app import app, db
+# >>> from app.models import User, Post
+# >>> import sqlalchemy as sa
+# >>> app.app_context().push()
+
+# >>> u = User(username='susan', email='susan@example.com')
+# >>> db.session.add(u)
+# >>> db.session.commit()
+
+# >>> query = sa.select(User)
+# >>> users = db.session.scalars(query).all()
+# >>> users
+# [<User john>, <User susan>]
+
+# >>> users = db.session.scalars(query)
+# >>> for u in users:
+# ...     print(u.id, u.username)
+# ...
+# 1 john
+# 2 susan
+# >>> u = db.session.get(User, 1)
+# >>> u
+# <User john>
+
+# >>> u = db.session.get(User, 1)
+# >>> p = Post(body='my first post!', author=u)
+# >>> db.session.add(p)
+# >>> db.session.commit()
+# >>> # get all posts written by a user
+# >>> u = db.session.get(User, 1)
+# >>> u
+# <User john>
+# >>> query = u.posts.select()
+# >>> posts = db.session.scalars(query).all()
+# >>> posts
+# [<Post my first post!>]
+
+# >>> # same, but with a user that has no posts
+# >>> u = db.session.get(User, 2)
+# >>> u
+# <User susan>
+# >>> query = u.posts.select()
+# >>> posts = db.session.scalars(query).all()
+# >>> posts
+# []
+
+# >>> # print post author and body for all posts
+# >>> query = sa.select(Post)
+# >>> posts = db.session.scalars(query)
+# >>> for p in posts:
+# ...     print(p.id, p.author.username, p.body)
+# ...
+# 1 john my first post!
+
+# # get all users in reverse alphabetical order
+# >>> query = sa.select(User).order_by(User.username.desc())
+# >>> db.session.scalars(query).all()
+# [<User susan>, <User john>]
+
+# # get all users that have usernames starting with "s"
+# >>> query = sa.select(User).where(User.username.like('s%'))
+# >>> db.session.scalars(query).all()
+# [<User susan>]
+
+#The flask shell sub-command is another very useful tool in the flask umbrella of commands. The shell command is the second "core" command implemented by Flask, after run. The purpose of this command is to start a Python interpreter in the context of the application. What does that mean? See the following example:
+#With a regular interpreter session, the app symbol is not known unless it is explicitly imported, but when using flask shell, the command pre-imports the application instance, and pushes its application context for you. The nice thing about flask shell is not only that it pre-imports app, but that you can also configure a "shell context", which is a list of other symbols to pre-import.
