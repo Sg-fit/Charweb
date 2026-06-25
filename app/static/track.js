@@ -1,5 +1,7 @@
+
 // Track user actions and save to localStorage
 const STORAGE_KEY = "userTrackingData";
+user_id = app.get("user_id");
 
 // Load existing data from localStorage
 function loadTrackingData() {
@@ -14,6 +16,12 @@ function saveToLocalStorage(action) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(userActions));
 }
 
+// Link Tracking Actions With Their User
+function linkActionToUser(action, userId) {
+    action.userId = userId;
+    saveToLocalStorage(action);
+}
+
 // Track clicks
 document.addEventListener("click", function(event) {
     const action = {
@@ -23,17 +31,28 @@ document.addEventListener("click", function(event) {
         x: event.clientX,
         y: event.clientY
     };
-    saveToLocalStorage(action);
+    linkActionToUser(action, user_id);
     console.log("Click tracked:", action);
 });
 
 // Track keyboard input
 document.addEventListener("keydown", function(event) {
+    const el = event.target;
+    const type = (el.type || "").toLowerCase();
+    const isSensitive = type === "password" ||
+        el.autocomplete === "current-password" ||
+        el.autocomplete === "new-password" ||
+        el.hasAttribute("data-no-track");
+
+    if (isSensitive) {
+        return; // never log keystrokes from password or explicitly excluded fields
+    }
+
     const action = {
-        type: "keydown",
+          type: "keydown",
         timestamp: new Date().toISOString(),
         key: event.key,
-        target: event.target.id || event.target.tagName
+        target: el.id || el.tagName
     };
     saveToLocalStorage(action);
     console.log("Key press tracked:", action);
@@ -69,7 +88,7 @@ document.addEventListener("wheel", function(event) {
     lastScrollY = currentScrollY;
     lastScrollVelocity = velocity;
 
-    saveToLocalStorage(action);
+    linkActionToUser(action, user_id);
     console.log("Scroll tracked:", action);
 });
 
