@@ -11,8 +11,8 @@ class Config:
         '1', 'true', 'yes', 'on')
     MAIL_USE_SSL = os.environ.get('MAIL_USE_SSL', 'false').strip().lower() in (
         '1', 'true', 'yes', 'on')
-    MAIL_USERNAME =  'zimuniu7@gmail.com'
-    MAIL_PASSWORD =  'tyax wpaz khkz mrga'
+    MAIL_USERNAME =  'User'
+    MAIL_PASSWORD =  'Password'
     MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER') or MAIL_USERNAME
     ADMINS = [MAIL_USERNAME] 
     POSTS_PER_PAGE = 15
