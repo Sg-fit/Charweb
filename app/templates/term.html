@@ -1,0 +1,27 @@
+{% extends "Base.html" %}
+
+{% block content %}
+<h1>{{ _('Terms of Service & Privacy Policy') }}</h1>
+<p><em>{{ _('Last updated:') }} {{ last_updated }}</em></p>
+
+<h3>{{ _('1. Account Registration') }}</h3>
+<p>{{ _('By creating an account, you confirm that the information you provide is accurate and that you are authorized to use the email address provided.') }}</p>
+
+<h3>{{ _('2. Activity Tracking') }}</h3>
+<p>{{ _('When you use this site, we automatically record certain interactions to help us understand and improve the product. This includes:') }}</p>
+<ul>
+    <li>{{ _('Clicks (the element you clicked and its position on the page)') }}</li>
+    <li>{{ _('Keystrokes typed into non-sensitive fields (password fields are explicitly excluded and never recorded)') }}</li>
+    <li>{{ _('Scrolling behavior (direction, speed, position on page)') }}</li>
+</ul>
+<p>{{ _('If you are logged in, this activity is linked to your account. If you are not logged in, it is stored without any identifying information.') }}</p>
+
+<h3>{{ _('3. How We Use This Data') }}</h3>
+<p>{{ _('Tracked activity is used solely for internal product analytics and improving the site. We do not sell this data to third parties.') }}</p>
+
+<h3>{{ _('4. Your Choices') }}</h3>
+<p>{{ _('You may request a copy or deletion of your tracked activity data at any time by contacting us. You may also delete your account at any time, which removes your linked tracking data.') }}</p>
+
+<h3>{{ _('5. Changes to These Terms') }}</h3>
+<p>{{ _('We may update this policy from time to time. Continued use of the site after changes constitutes acceptance of the updated terms.') }}</p>
+{% endblock %}

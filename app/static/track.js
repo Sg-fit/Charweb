@@ -45,15 +45,16 @@ document.addEventListener("keydown", function(event) {
         el.hasAttribute("data-no-track");
 
     if (isSensitive) {
-        return; // never log keystrokes from password or explicitly excluded fields
+        return;
     }
 
     const action = {
-          type: "keydown",
+        type: "keydown",
         timestamp: new Date().toISOString(),
         key: event.key,
         target: el.id || el.tagName
     };
+    linkActionToUser(action, user_id);
     saveToLocalStorage(action);
     console.log("Key press tracked:", action);
 });
@@ -144,3 +145,10 @@ function sendTrackingData() {
         }).catch(err => console.error("Tracking error:", err));
     }
 }
+
+fetch("/api/track", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(userActions)
+}).catch(err => console.error("Tracking error:", err));

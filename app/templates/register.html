@@ -4,4 +4,5 @@
 {% block content %}
     <h1>{{ _('Register') }}</h1>
     {{ wtf.quick_form(form) }}
+    <p><a href="{{ url_for('terms') }}" target="_blank">{{ _('Read our Terms of Service and Privacy Policy') }}</a></p>
 {% endblock %}

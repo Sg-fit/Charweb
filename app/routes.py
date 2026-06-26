@@ -7,10 +7,10 @@ import sqlalchemy as sa
 from app import app, db
 from app.form import LoginForm, RegistrationForm, EditProfileForm, \
     EmptyForm, PostForm, ResetPasswordRequestForm, ResetPasswordForm
-from app.models import User, Post
+from app.models import User, Post, TrackedAction
 from app.email import send_password_reset_email
 from langdetect import detect, LangDetectException
-
+import json
 
 @app.before_request
 def before_request():
@@ -96,6 +96,8 @@ def register():
     if form.validate_on_submit():
         user = User(username=form.username.data, email=form.email.data)
         user.set_password(form.password.data)
+        if form.accept_terms.data:
+            user.terms_accepted_at = datetime.now(timezone.utc)
         db.session.add(user)
         db.session.commit()
         flash(_('Congratulations, you are now a registered user!'))
@@ -172,6 +174,35 @@ def edit_profile():
     return render_template('edit_profile.html', title=_('Edit Profile'),
                            form=form)
 
+@app.route('/api/track', methods=['POST'])
+def track():
+    actions = request.get_json(silent=True)
+    if not actions or not isinstance(actions, list):
+        return {'error': 'expected a JSON array of actions'}, 400
+
+    user_id = current_user.id if current_user.is_authenticated else None
+
+    for item in actions:
+        action_type = item.get('type', 'unknown')
+        target = item.get('target')
+        details = {k: v for k, v in item.items()
+                    if k not in ('type', 'target', 'timestamp')}
+        record = TrackedAction(
+            user_id=user_id,
+            action_type=action_type,
+            target=target,
+            details=json.dumps(details)
+        )
+        db.session.add(record)
+
+    db.session.commit()
+    return {'status': 'ok', 'stored': len(actions)}, 201
+
+
+@app.route('/terms')
+def terms():
+    return render_template('terms.html', title=_('Terms of Service'),
+                            last_updated='June 2026')
 
 # @app.route('/follow/<username>', methods=['POST'])
 # @login_required
