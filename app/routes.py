@@ -202,7 +202,7 @@ def track():
 @app.route('/terms')
 def terms():
     return render_template('terms.html', title=_('Terms of Service'),
-                            last_updated='June 2026')
+    last_updated='June 2026')
 
 # @app.route('/follow/<username>', methods=['POST'])
 # @login_required
