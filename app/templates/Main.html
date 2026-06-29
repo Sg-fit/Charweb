@@ -6,6 +6,53 @@
     {% if form %}
      {{ wtf.quick_form(form) }}
     {% endif %}
+    
+
+    <div id="mission-timer" class="alert alert-warning text-center" style="font-size: 1.5rem; font-weight: bold;"> 
+        Time remaining: <span id="timer-display">01:00</span>
+    </div>
+
+    <button id="start-timer" class="btn btn-primary mt-3">Start Timer</button>
+
+    <script>
+    (function() {
+        const DURATION_SECONDS = 60;
+        let remaining = DURATION_SECONDS;
+        let interval = null;
+
+        const display = document.getElementById("timer-display");
+        const banner = document.getElementById("mission-timer");
+        const startButton = document.getElementById("start-timer");
+
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60).toString().padStart(2, "0");
+            const s = (seconds % 60).toString().padStart(2, "0");
+            return `${m}:${s}`;
+        }
+
+        function startTimer() {
+            if (interval !== null) return; // prevents double-start
+
+            interval = setInterval(function() {
+                remaining--;
+                display.textContent = formatTime(Math.max(remaining, 0));
+
+                if (remaining <= 10) {
+                    banner.classList.remove("alert-warning");
+                    banner.classList.add("alert-danger");
+                }
+
+                if (remaining <= 0) {
+                    clearInterval(interval);
+                    display.textContent = "00:00";
+                    banner.textContent = "Time's up!";
+                }
+            }, 1000);
+        }
+
+        startButton.addEventListener("click", startTimer);
+    })();
+    </script>
     {% for post in posts %}
         {% include 'post.html' %}
     {% endfor %}
@@ -24,4 +71,5 @@
             </li>
         </ul>
     </nav>
+    <p class="text-muted mt-3"><small><a href="{{ url_for('terms') }}" target="_blank">{{ _('Terms of Service & Privacy Policy') }}</a></small></p>
 {% endblock %}

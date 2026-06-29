@@ -1,16 +1,16 @@
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
-from flask import render_template, flash, redirect, url_for, request, abort
+from flask import render_template, flash, redirect, url_for, request, abort, Response 
 from flask_login import login_user, logout_user, current_user, login_required
 from flask_babel import _
 import sqlalchemy as sa
 from app import app, db
 from app.form import LoginForm, RegistrationForm, EditProfileForm, \
     EmptyForm, PostForm, ResetPasswordRequestForm, ResetPasswordForm
-from app.models import User, Post
+from app.models import User, Post, TrackedAction
 from app.email import send_password_reset_email
 from langdetect import detect, LangDetectException
-
+import json
 
 @app.before_request
 def before_request():
@@ -96,6 +96,8 @@ def register():
     if form.validate_on_submit():
         user = User(username=form.username.data, email=form.email.data)
         user.set_password(form.password.data)
+        if form.accept_terms.data:
+            user.terms_accepted_at = datetime.now(timezone.utc)
         db.session.add(user)
         db.session.commit()
         flash(_('Congratulations, you are now a registered user!'))
@@ -172,7 +174,90 @@ def edit_profile():
     return render_template('edit_profile.html', title=_('Edit Profile'),
                            form=form)
 
+@app.route('/api/track', methods=['POST'])
+def track():
+    actions = request.get_json(silent=True)
+    if not actions or not isinstance(actions, list):
+        return {'error': 'expected a JSON array of actions'}, 400
 
+    user_id = current_user.id if current_user.is_authenticated else None
+
+    for item in actions:
+        action_type = item.get('type', 'unknown')
+        target = item.get('target')
+        details = {k: v for k, v in item.items()
+                    if k not in ('type', 'target', 'timestamp')}
+        client_ts = item.get('timestamp')
+        if client_ts:
+            try:
+                parsed_ts = datetime.fromisoformat(client_ts.replace('Z', '+00:00'))
+            except ValueError:
+                parsed_ts = datetime.now(timezone.utc)
+        else:
+            parsed_ts = datetime.now(timezone.utc)
+        record = TrackedAction(
+            user_id=user_id,
+            action_type=action_type,
+            target=target,
+            timestamp=parsed_ts,
+            details=json.dumps(details)
+        )
+        db.session.add(record)        
+    db.session.commit()
+    return {'status': 'ok', 'stored': len(actions)}, 201
+
+
+@app.route('/terms')
+def terms():
+    return render_template('terms.html', title=_('Terms of Service'),
+    last_updated='June 2026')
+
+@app.route('/admin/tracking')
+@login_required
+def admin_tracking():
+    if not current_user.is_admin:
+        abort(403)
+    page = request.args.get('page', 1, type=int)
+    user_filter = request.args.get('user', '', type=str)
+    query = sa.select(TrackedAction).order_by(TrackedAction.timestamp.desc())
+    if user_filter:
+        query = query.join(User, TrackedAction.user_id == User.id, isouter=True) \
+            .where(User.username == user_filter)
+    actions = db.paginate(query, page=page, per_page=50, error_out=False)
+    next_url = url_for('admin_tracking', page=actions.next_num, user=user_filter) \
+        if actions.has_next else None
+    prev_url = url_for('admin_tracking', page=actions.prev_num, user=user_filter) \
+        if actions.has_prev else None
+    return render_template('admin_tracking.html', title=_('Tracking Data'),
+                            actions=actions.items, next_url=next_url,
+                            prev_url=prev_url, user_filter=user_filter)
+
+@app.route('/admin/tracking/export')
+@login_required
+def admin_tracking_export():
+    if not current_user.is_admin:
+        abort(403)
+    user_filter = request.args.get('user', '', type=str)
+    query = sa.select(TrackedAction).order_by(TrackedAction.timestamp.desc())
+    if user_filter:
+        query = query.join(User, TrackedAction.user_id == User.id, isouter=True) \
+            .where(User.username == user_filter)
+    all_actions = db.session.scalars(query).all()
+
+    lines = ["timestamp,username,action_type,target,details"]
+    for a in all_actions:
+        username = a.user.username if a.user else "anonymous"
+        details = (a.details or "").replace('"', '""')
+        target = (a.target or "").replace('"', '""')
+        lines.append(f'"{a.timestamp}","{username}","{a.action_type}","{target}","{details}"')
+    csv_content = "\n".join(lines) + "\n"
+
+    filename = f"tracking_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
+    return Response(
+        csv_content,
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 # @app.route('/follow/<username>', methods=['POST'])
 # @login_required
 # def follow(username):

@@ -1,138 +1,99 @@
-2026-06-13 14:31:39,501 INFO: Charweb startup [in C:\Users\charl\ProjectStart\venv\app\__init__.py:56]
-2026-06-13 14:32:07,729 INFO: Charweb startup [in C:\Users\charl\ProjectStart\venv\app\__init__.py:56]
-2026-06-13 14:32:40,881 ERROR: Exception on /search [GET] [in C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py:875]
+2026-06-26 03:06:52,436 ERROR: Exception on /login [GET] [in /home/vagrant/venv/lib/python3.10/site-packages/flask/app.py:875]
 Traceback (most recent call last):
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\urllib3\connection.py", line 204, in _new_conn
-    sock = connection.create_connection(
-        (self._dns_host, self.port),
-    ...<2 lines>...
-        socket_options=self.socket_options,
-    )
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\urllib3\util\connection.py", line 85, in create_connection
-    raise err
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\urllib3\util\connection.py", line 73, in create_connection
-    sock.connect(sa)
-    ~~~~~~~~~~~~^^^^
-ConnectionRefusedError: [WinError 10061] No connection could be made because the target machine actively refused it
-
-The above exception was the direct cause of the following exception:
-
-Traceback (most recent call last):
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\elastic_transport\_node\_http_urllib3.py", line 167, in perform_request
-    response = self.pool.urlopen(
-        method,
-    ...<4 lines>...
-        **kw,  # type: ignore[arg-type]
-    )
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\urllib3\connectionpool.py", line 842, in urlopen
-    retries = retries.increment(
-        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
-    )
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\urllib3\util\retry.py", line 473, in increment
-    raise reraise(type(error), error, _stacktrace)
-          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\urllib3\util\util.py", line 39, in reraise
-    raise value
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\urllib3\connectionpool.py", line 788, in urlopen
-    response = self._make_request(
-        conn,
-    ...<10 lines>...
-        **response_kw,
-    )
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\urllib3\connectionpool.py", line 493, in _make_request
-    conn.request(
-    ~~~~~~~~~~~~^
-        method,
-        ^^^^^^^
-    ...<6 lines>...
-        enforce_content_length=enforce_content_length,
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    )
-    ^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\urllib3\connection.py", line 500, in request
-    self.endheaders()
-    ~~~~~~~~~~~~~~~^^
-  File "C:\Users\charl\AppData\Local\Python\pythoncore-3.14-64\Lib\http\client.py", line 1362, in endheaders
-    self._send_output(message_body, encode_chunked=encode_chunked)
-    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\charl\AppData\Local\Python\pythoncore-3.14-64\Lib\http\client.py", line 1122, in _send_output
-    self.send(msg)
-    ~~~~~~~~~^^^^^
-  File "C:\Users\charl\AppData\Local\Python\pythoncore-3.14-64\Lib\http\client.py", line 1066, in send
-    self.connect()
-    ~~~~~~~~~~~~^^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\urllib3\connection.py", line 331, in connect
-    self.sock = self._new_conn()
-                ~~~~~~~~~~~~~~^^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\urllib3\connection.py", line 219, in _new_conn
-    raise NewConnectionError(
-        self, f"Failed to establish a new connection: {e}"
-    ) from e
-urllib3.exceptions.NewConnectionError: HTTPConnection(host='localhost', port=9200): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it
-
-The above exception was the direct cause of the following exception:
-
-Traceback (most recent call last):
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 1511, in wsgi_app
     response = self.full_dispatch_request()
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 919, in full_dispatch_request
     rv = self.handle_user_exception(e)
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 917, in full_dispatch_request
     rv = self.dispatch_request()
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 902, in dispatch_request
     return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
-           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask_login\utils.py", line 290, in decorated_view
-    return current_app.ensure_sync(func)(*args, **kwargs)
-           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\app\main\routes.py", line 25, in search
-    posts, total = Post.search(g.search_form.q.data, page,
-                   ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                               current_app.config['POSTS_PER_PAGE'])
-                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\app\models.py", line 72, in search
-    ids, total = query_index(cls.__tablename__, expression, page, per_page)
-                 ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\app\search.py", line 19, in query_index
-    search = current_app.elasticsearch.search(
-        index=index,
-        query={'multi_match': {'query': query, 'fields': ['*']}},
-        from_=(page - 1) * per_page,
-        size=per_page)
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\elasticsearch\_sync\client\utils.py", line 421, in wrapped
-    return api(*args, **kwargs)
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\elasticsearch\_sync\client\__init__.py", line 4908, in search
-    return self.perform_request(  # type: ignore[return-value]
-           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-        "POST",
-        ^^^^^^^
-    ...<5 lines>...
-        path_parts=__path_parts,
-        ^^^^^^^^^^^^^^^^^^^^^^^^
-    )
-    ^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\elasticsearch\_sync\client\_base.py", line 274, in perform_request
-    response = self._perform_request(
-        method,
-    ...<4 lines>...
-        otel_span=otel_span,
-    )
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\elasticsearch\_sync\client\_base.py", line 322, in _perform_request
-    meta, resp_body = self.transport.perform_request(
-                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
-        method,
-        ^^^^^^^
-    ...<10 lines>...
-        otel_span=otel_span,
-        ^^^^^^^^^^^^^^^^^^^^
-    )
-    ^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\elastic_transport\_transport.py", line 375, in perform_request
-    resp = node.perform_request(
-        method,
-    ...<3 lines>...
-        request_timeout=request_timeout,
-    )
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\elastic_transport\_node\_http_urllib3.py", line 202, in perform_request
-    raise err from e
-elastic_transport.ConnectionError: Connection error caused by: ConnectionError(Connection error caused by: NewConnectionError(HTTPConnection(host='localhost', port=9200): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it))
+  File "/home/vagrant/charweb3/app/routes.py", line 82, in login
+    return render_template('Login.html', title=_('Sign In'), form=form)
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/templating.py", line 151, in render_template
+    return _render(app, template, context)
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/templating.py", line 132, in _render
+    rv = template.render(context)
+  File "/home/vagrant/venv/lib/python3.10/site-packages/jinja2/environment.py", line 1295, in render
+    self.environment.handle_exception()
+  File "/home/vagrant/venv/lib/python3.10/site-packages/jinja2/environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "/home/vagrant/charweb3/app/templates/Login.html", line 2, in top-level template code
+    {% import "bootstrap_wtf.html" as wtf %}
+  File "/home/vagrant/charweb3/app/templates/Base.html", line 70, in top-level template code
+    {% block content %}{% endblock %}
+  File "/home/vagrant/charweb3/app/templates/Login.html", line 14, in block 'content'
+    <p><a href="{{ url_for('terms') }}" target="_blank">{{ _('Read our Terms of Service and Privacy Policy') }}</a></p>
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 1121, in url_for
+    return self.handle_url_build_error(error, endpoint, values)
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 1110, in url_for
+    rv = url_adapter.build(  # type: ignore[union-attr]
+  File "/home/vagrant/venv/lib/python3.10/site-packages/werkzeug/routing/map.py", line 901, in build
+    raise BuildError(endpoint, values, method, self)
+werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'terms'. Did you mean 'register' instead?
+2026-06-26 03:06:57,189 ERROR: Exception on /login [GET] [in /home/vagrant/venv/lib/python3.10/site-packages/flask/app.py:875]
+Traceback (most recent call last):
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "/home/vagrant/charweb3/app/routes.py", line 82, in login
+    return render_template('Login.html', title=_('Sign In'), form=form)
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/templating.py", line 151, in render_template
+    return _render(app, template, context)
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/templating.py", line 132, in _render
+    rv = template.render(context)
+  File "/home/vagrant/venv/lib/python3.10/site-packages/jinja2/environment.py", line 1295, in render
+    self.environment.handle_exception()
+  File "/home/vagrant/venv/lib/python3.10/site-packages/jinja2/environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "/home/vagrant/charweb3/app/templates/Login.html", line 2, in top-level template code
+    {% import "bootstrap_wtf.html" as wtf %}
+  File "/home/vagrant/charweb3/app/templates/Base.html", line 70, in top-level template code
+    {% block content %}{% endblock %}
+  File "/home/vagrant/charweb3/app/templates/Login.html", line 14, in block 'content'
+    <p><a href="{{ url_for('terms') }}" target="_blank">{{ _('Read our Terms of Service and Privacy Policy') }}</a></p>
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 1121, in url_for
+    return self.handle_url_build_error(error, endpoint, values)
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 1110, in url_for
+    rv = url_adapter.build(  # type: ignore[union-attr]
+  File "/home/vagrant/venv/lib/python3.10/site-packages/werkzeug/routing/map.py", line 901, in build
+    raise BuildError(endpoint, values, method, self)
+werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'terms'. Did you mean 'register' instead?
+2026-06-26 03:06:58,022 ERROR: Exception on /login [GET] [in /home/vagrant/venv/lib/python3.10/site-packages/flask/app.py:875]
+Traceback (most recent call last):
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "/home/vagrant/charweb3/app/routes.py", line 82, in login
+    return render_template('Login.html', title=_('Sign In'), form=form)
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/templating.py", line 151, in render_template
+    return _render(app, template, context)
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/templating.py", line 132, in _render
+    rv = template.render(context)
+  File "/home/vagrant/venv/lib/python3.10/site-packages/jinja2/environment.py", line 1295, in render
+    self.environment.handle_exception()
+  File "/home/vagrant/venv/lib/python3.10/site-packages/jinja2/environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "/home/vagrant/charweb3/app/templates/Login.html", line 2, in top-level template code
+    {% import "bootstrap_wtf.html" as wtf %}
+  File "/home/vagrant/charweb3/app/templates/Base.html", line 70, in top-level template code
+    {% block content %}{% endblock %}
+  File "/home/vagrant/charweb3/app/templates/Login.html", line 14, in block 'content'
+    <p><a href="{{ url_for('terms') }}" target="_blank">{{ _('Read our Terms of Service and Privacy Policy') }}</a></p>
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 1121, in url_for
+    return self.handle_url_build_error(error, endpoint, values)
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 1110, in url_for
+    rv = url_adapter.build(  # type: ignore[union-attr]
+  File "/home/vagrant/venv/lib/python3.10/site-packages/werkzeug/routing/map.py", line 901, in build
+    raise BuildError(endpoint, values, method, self)
+werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'terms'. Did you mean 'register' instead?

@@ -14,7 +14,7 @@ from elasticsearch import Elasticsearch
 def get_locale():
     return request.accept_languages.best_match(Config.LANGUAGES)
 
-app = Flask(__name__, template_folder='Templates')
+app = Flask(__name__, template_folder='templates')
 app.config.from_object(Config)
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)

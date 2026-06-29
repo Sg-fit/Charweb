@@ -18,6 +18,9 @@ class RegistrationForm(FlaskForm):
     password = PasswordField(_('Password'), validators=[DataRequired(message=_('This field is required.'))])
     password2 = PasswordField(
         _('Repeat Password'), validators=[DataRequired(message=_('This field is required.')), EqualTo('password', message=_('Passwords must match'))])
+    accept_terms = BooleanField(
+        _('I have read and agree to the Terms of Service and Privacy Policy'),
+        validators=[DataRequired(message=_('You must accept the Terms of Service and Privacy Policy to create an account.'))])
     submit = SubmitField(_('Register'))
 
     def validate_username(self, username):

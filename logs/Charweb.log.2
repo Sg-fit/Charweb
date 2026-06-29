@@ -1,108 +1,13 @@
-2026-06-13 15:04:45,574 ERROR: Failed to send error email [in C:\Users\charl\ProjectStart\venv\app\error.py:27]
+2026-06-28 23:08:39,912 ERROR: Exception on /register [POST] [in /home/vagrant/venv/lib/python3.10/site-packages/flask/app.py:875]
 Traceback (most recent call last):
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 1511, in wsgi_app
     response = self.full_dispatch_request()
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 919, in full_dispatch_request
     rv = self.handle_user_exception(e)
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 917, in full_dispatch_request
     rv = self.dispatch_request()
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 902, in dispatch_request
     return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
-           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask_login\utils.py", line 290, in decorated_view
-    return current_app.ensure_sync(func)(*args, **kwargs)
-           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\app\routes.py", line 36, in index
-    return redirect(url_for('index'))
-                    ^^^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\helpers.py", line 239, in url_for
-    return current_app.url_for(
-           ~~~~~~~~~~~~~~~~~~~^
-        endpoint,
-        ^^^^^^^^^
-    ...<4 lines>...
-        **values,
-        ^^^^^^^^^
-    )
-    ^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 1121, in url_for
-    return self.handle_url_build_error(error, endpoint, values)
-           ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 1110, in url_for
-    rv = url_adapter.build(  # type: ignore[union-attr]
-        endpoint,
-    ...<3 lines>...
-        force_external=_external,
-    )
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\werkzeug\routing\map.py", line 901, in build
-    raise BuildError(endpoint, values, method, self)
-werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'home'. Did you mean 'main.search' instead?
-
-During handling of the above exception, another exception occurred:
-
-Traceback (most recent call last):
-  File "C:\Users\charl\ProjectStart\venv\app\error.py", line 25, in internal_error
-    mail.send(msg)
-    ~~~~~~~~~^^^^^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask_mail\__init__.py", line 539, in send
-    with self.connect() as connection:
-         ~~~~~~~~~~~~^^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask_mail\__init__.py", line 127, in __enter__
-    self.host = self.configure_host()
-                ~~~~~~~~~~~~~~~~~~~^^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask_mail\__init__.py", line 152, in configure_host
-    host.login(self.mail.username, self.mail.password)
-    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\charl\AppData\Local\Python\pythoncore-3.14-64\Lib\smtplib.py", line 762, in login
-    raise last_exception
-  File "C:\Users\charl\AppData\Local\Python\pythoncore-3.14-64\Lib\smtplib.py", line 751, in login
-    (code, resp) = self.auth(
-                   ~~~~~~~~~^
-        authmethod, getattr(self, method_name),
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-        initial_response_ok=initial_response_ok)
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\charl\AppData\Local\Python\pythoncore-3.14-64\Lib\smtplib.py", line 669, in auth
-    raise SMTPAuthenticationError(code, resp)
-smtplib.SMTPAuthenticationError: (535, b'5.7.8 Username and Password not accepted. For more information, go to\n5.7.8  https://support.google.com/mail/?p=BadCredentials 6a1803df08f44-8d304577e2esm57574956d6.32 - gsmtp')
-2026-06-13 15:11:53,497 INFO: Charweb startup [in C:\Users\charl\ProjectStart\venv\app\__init__.py:54]
-2026-06-13 15:12:48,009 INFO: Charweb startup [in C:\Users\charl\ProjectStart\venv\app\__init__.py:54]
-2026-06-13 15:14:49,214 ERROR: Exception on /home [POST] [in C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py:875]
-Traceback (most recent call last):
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
-    response = self.full_dispatch_request()
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
-    rv = self.handle_user_exception(e)
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
-    rv = self.dispatch_request()
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
-    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
-           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask_login\utils.py", line 290, in decorated_view
-    return current_app.ensure_sync(func)(*args, **kwargs)
-           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\app\routes.py", line 36, in index
-    return redirect(url_for('home'))
-                    ~~~~~~~^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\helpers.py", line 239, in url_for
-    return current_app.url_for(
-           ~~~~~~~~~~~~~~~~~~~^
-        endpoint,
-        ^^^^^^^^^
-    ...<4 lines>...
-        **values,
-        ^^^^^^^^^
-    )
-    ^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 1121, in url_for
-    return self.handle_url_build_error(error, endpoint, values)
-           ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 1110, in url_for
-    rv = url_adapter.build(  # type: ignore[union-attr]
-        endpoint,
-    ...<3 lines>...
-        force_external=_external,
-    )
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\werkzeug\routing\map.py", line 901, in build
-    raise BuildError(endpoint, values, method, self)
-werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'home'. Did you mean 'main.search' instead?
+  File "/home/vagrant/charweb3/app/routes.py", line 99, in register
+    if form.accept_terms.data:
+AttributeError: 'RegistrationForm' object has no attribute 'accept_terms'

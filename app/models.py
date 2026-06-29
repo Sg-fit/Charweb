@@ -24,7 +24,9 @@ class User(UserMixin, db.Model):
     about_me: so.Mapped[Optional[str]] = so.mapped_column(sa.String(140))
     last_seen: so.Mapped[Optional[datetime]] = so.mapped_column(
         default=lambda: datetime.now(timezone.utc))
-
+    terms_accepted_at: so.Mapped[Optional[datetime]] = so.mapped_column(
+        default=None, nullable=True)
+    is_admin: so.Mapped[bool] = so.mapped_column(default=False)
     posts: so.WriteOnlyMapped['Post'] = so.relationship(
         back_populates='author')
     # following: so.WriteOnlyMapped['User'] = so.relationship(
@@ -139,5 +141,20 @@ class Post(SearchableMixin, db.Model):
         for obj in db.session.scalars(sa.select(cls)):
             add_to_index(cls.__tablename__, obj)
 
+class TrackedAction(db.Model):
+    id: so.Mapped[int] = so.mapped_column(primary_key=True)
+    user_id: so.Mapped[Optional[int]] = so.mapped_column(
+        sa.ForeignKey(User.id), index=True, nullable=True)
+    action_type: so.Mapped[str] = so.mapped_column(sa.String(20))
+    target: so.Mapped[Optional[str]] = so.mapped_column(sa.String(120))
+    timestamp: so.Mapped[datetime] = so.mapped_column(
+        index=True, default=lambda: datetime.now(timezone.utc))
+    details: so.Mapped[Optional[str]] = so.mapped_column(sa.Text)
+
+    user: so.Mapped[Optional[User]] = so.relationship()
+
+    def __repr__(self):
+        return f'<TrackedAction {self.action_type} user_id={self.user_id}>'
+    
 db.event.listen(db.session, 'before_commit', SearchableMixin.before_commit)
 db.event.listen(db.session, 'after_commit', SearchableMixin.after_commit)

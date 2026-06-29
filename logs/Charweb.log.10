@@ -1,135 +1,66 @@
-2026-06-09 19:17:32,051 ERROR: Exception on /user/hi [GET] [in C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py:875]
+2026-06-26 03:06:51,505 ERROR: Exception on /login [GET] [in /home/vagrant/venv/lib/python3.10/site-packages/flask/app.py:875]
 Traceback (most recent call last):
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 1511, in wsgi_app
     response = self.full_dispatch_request()
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 919, in full_dispatch_request
     rv = self.handle_user_exception(e)
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 917, in full_dispatch_request
     rv = self.dispatch_request()
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 902, in dispatch_request
     return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
-           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask_login\utils.py", line 290, in decorated_view
-    return current_app.ensure_sync(func)(*args, **kwargs)
-           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\app\routes.py", line 146, in user
-    return render_template('user.html', user=user, posts=posts.items,
-                           next_url=next_url, prev_url=prev_url, form=form)
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\templating.py", line 151, in render_template
+  File "/home/vagrant/charweb3/app/routes.py", line 82, in login
+    return render_template('Login.html', title=_('Sign In'), form=form)
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/templating.py", line 151, in render_template
     return _render(app, template, context)
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\templating.py", line 132, in _render
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/templating.py", line 132, in _render
     rv = template.render(context)
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\jinja2\environment.py", line 1295, in render
+  File "/home/vagrant/venv/lib/python3.10/site-packages/jinja2/environment.py", line 1295, in render
     self.environment.handle_exception()
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\jinja2\environment.py", line 942, in handle_exception
+  File "/home/vagrant/venv/lib/python3.10/site-packages/jinja2/environment.py", line 942, in handle_exception
     raise rewrite_traceback_stack(source=source)
-  File "C:\Users\charl\ProjectStart\venv\app\Templates\user.html", line 1, in top-level template code
-    {% extends "base.html" %}
-  File "C:\Users\charl\ProjectStart\venv\app\Templates\base.html", line 61, in top-level template code
+  File "/home/vagrant/charweb3/app/templates/Login.html", line 2, in top-level template code
+    {% import "bootstrap_wtf.html" as wtf %}
+  File "/home/vagrant/charweb3/app/templates/Base.html", line 70, in top-level template code
     {% block content %}{% endblock %}
-    ^^^^^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\app\Templates\user.html", line 18, in block 'content'
-    {% include '_post.html' %}
-    ^^^^^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\templating.py", line 66, in get_source
-    return self._get_source_fast(environment, template)
-           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\templating.py", line 100, in _get_source_fast
-    raise TemplateNotFound(template)
-jinja2.exceptions.TemplateNotFound: _post.html
-2026-06-09 19:17:38,885 ERROR: Exception on /user/hi [GET] [in C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py:875]
+  File "/home/vagrant/charweb3/app/templates/Login.html", line 14, in block 'content'
+    <p><a href="{{ url_for('terms') }}" target="_blank">{{ _('Read our Terms of Service and Privacy Policy') }}</a></p>
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 1121, in url_for
+    return self.handle_url_build_error(error, endpoint, values)
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 1110, in url_for
+    rv = url_adapter.build(  # type: ignore[union-attr]
+  File "/home/vagrant/venv/lib/python3.10/site-packages/werkzeug/routing/map.py", line 901, in build
+    raise BuildError(endpoint, values, method, self)
+werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'terms'. Did you mean 'register' instead?
+2026-06-26 03:07:21,164 ERROR: Exception on /login [GET] [in /home/vagrant/venv/lib/python3.10/site-packages/flask/app.py:875]
 Traceback (most recent call last):
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 1511, in wsgi_app
     response = self.full_dispatch_request()
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 919, in full_dispatch_request
     rv = self.handle_user_exception(e)
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 917, in full_dispatch_request
     rv = self.dispatch_request()
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 902, in dispatch_request
     return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
-           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask_login\utils.py", line 290, in decorated_view
-    return current_app.ensure_sync(func)(*args, **kwargs)
-           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\app\routes.py", line 146, in user
-    return render_template('user.html', user=user, posts=posts.items,
-                           next_url=next_url, prev_url=prev_url, form=form)
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\templating.py", line 151, in render_template
+  File "/home/vagrant/charweb3/app/routes.py", line 82, in login
+    return render_template('Login.html', title=_('Sign In'), form=form)
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/templating.py", line 151, in render_template
     return _render(app, template, context)
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\templating.py", line 132, in _render
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/templating.py", line 132, in _render
     rv = template.render(context)
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\jinja2\environment.py", line 1295, in render
+  File "/home/vagrant/venv/lib/python3.10/site-packages/jinja2/environment.py", line 1295, in render
     self.environment.handle_exception()
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\jinja2\environment.py", line 942, in handle_exception
+  File "/home/vagrant/venv/lib/python3.10/site-packages/jinja2/environment.py", line 942, in handle_exception
     raise rewrite_traceback_stack(source=source)
-  File "C:\Users\charl\ProjectStart\venv\app\Templates\user.html", line 1, in top-level template code
-    {% extends "base.html" %}
-  File "C:\Users\charl\ProjectStart\venv\app\Templates\base.html", line 61, in top-level template code
+  File "/home/vagrant/charweb3/app/templates/Login.html", line 2, in top-level template code
+    {% import "bootstrap_wtf.html" as wtf %}
+  File "/home/vagrant/charweb3/app/templates/Base.html", line 70, in top-level template code
     {% block content %}{% endblock %}
-    ^^^^^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\app\Templates\user.html", line 18, in block 'content'
-    {% include '_post.html' %}
-    ^^^^^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\templating.py", line 66, in get_source
-    return self._get_source_fast(environment, template)
-           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\templating.py", line 100, in _get_source_fast
-    raise TemplateNotFound(template)
-jinja2.exceptions.TemplateNotFound: _post.html
-2026-06-09 19:20:22,932 INFO: Charweb startup [in C:\Users\charl\ProjectStart\venv\app\__init__.py:49]
-2026-06-09 19:20:30,621 ERROR: Exception on /user/hi [GET] [in C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py:875]
-Traceback (most recent call last):
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
-    response = self.full_dispatch_request()
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
-    rv = self.handle_user_exception(e)
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
-    rv = self.dispatch_request()
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
-    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
-           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask_login\utils.py", line 290, in decorated_view
-    return current_app.ensure_sync(func)(*args, **kwargs)
-           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\app\routes.py", line 149, in user
-    return render_template('user.html', user=user, posts=posts.items,
-                           next_url=next_url, prev_url=prev_url, form=form)
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\templating.py", line 151, in render_template
-    return _render(app, template, context)
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\templating.py", line 132, in _render
-    rv = template.render(context)
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\jinja2\environment.py", line 1295, in render
-    self.environment.handle_exception()
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\jinja2\environment.py", line 942, in handle_exception
-    raise rewrite_traceback_stack(source=source)
-  File "C:\Users\charl\ProjectStart\venv\app\Templates\user.html", line 1, in top-level template code
-    {% extends "base.html" %}
-  File "C:\Users\charl\ProjectStart\venv\app\Templates\base.html", line 61, in top-level template code
-    {% block content %}{% endblock %}
-    ^^^^^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\app\Templates\user.html", line 18, in block 'content'
-    {% include '_post.html' %}
-    ^^^^^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\templating.py", line 66, in get_source
-    return self._get_source_fast(environment, template)
-           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\charl\ProjectStart\venv\Lib\site-packages\flask\templating.py", line 100, in _get_source_fast
-    raise TemplateNotFound(template)
-jinja2.exceptions.TemplateNotFound: _post.html
-2026-06-09 19:22:27,993 INFO: Charweb startup [in C:\Users\charl\ProjectStart\venv\app\__init__.py:49]
-2026-06-13 11:33:02,456 INFO: Charweb startup [in C:\Users\charl\ProjectStart\venv\app\__init__.py:49]
-2026-06-13 11:35:44,595 INFO: Charweb startup [in C:\Users\charl\ProjectStart\venv\app\__init__.py:49]
-2026-06-13 11:37:51,294 INFO: Charweb startup [in C:\Users\charl\ProjectStart\venv\app\__init__.py:49]
-2026-06-13 11:42:07,096 INFO: Charweb startup [in C:\Users\charl\ProjectStart\venv\app\__init__.py:49]
-2026-06-13 13:42:32,970 INFO: Charweb startup [in C:\Users\charl\ProjectStart\venv\app\__init__.py:55]
-2026-06-13 13:43:04,299 INFO: Charweb startup [in C:\Users\charl\ProjectStart\venv\app\__init__.py:55]
-2026-06-13 13:43:35,343 INFO: Charweb startup [in C:\Users\charl\ProjectStart\venv\app\__init__.py:55]
-2026-06-13 13:43:43,645 INFO: Charweb startup [in C:\Users\charl\ProjectStart\venv\app\__init__.py:55]
-2026-06-13 13:45:10,511 INFO: Charweb startup [in C:\Users\charl\ProjectStart\venv\app\__init__.py:55]
-2026-06-13 14:17:31,253 INFO: Charweb startup [in C:\Users\charl\ProjectStart\venv\app\__init__.py:56]
-2026-06-13 14:19:02,652 INFO: Charweb startup [in C:\Users\charl\ProjectStart\venv\app\__init__.py:56]
-2026-06-13 14:22:11,749 INFO: Charweb startup [in C:\Users\charl\ProjectStart\venv\app\__init__.py:56]
-2026-06-13 14:30:51,404 INFO: Charweb startup [in C:\Users\charl\ProjectStart\venv\app\__init__.py:56]
+  File "/home/vagrant/charweb3/app/templates/Login.html", line 14, in block 'content'
+    <p><a href="{{ url_for('terms') }}" target="_blank">{{ _('Read our Terms of Service and Privacy Policy') }}</a></p>
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 1121, in url_for
+    return self.handle_url_build_error(error, endpoint, values)
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 1110, in url_for
+    rv = url_adapter.build(  # type: ignore[union-attr]
+  File "/home/vagrant/venv/lib/python3.10/site-packages/werkzeug/routing/map.py", line 901, in build
+    raise BuildError(endpoint, values, method, self)
+werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'terms'. Did you mean 'register' instead?

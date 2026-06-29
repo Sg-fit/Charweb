@@ -1,7 +1,5 @@
-
 // Track user actions and save to localStorage
 const STORAGE_KEY = "userTrackingData";
-user_id = app.get("user_id");
 
 // Load existing data from localStorage
 function loadTrackingData() {
@@ -16,12 +14,6 @@ function saveToLocalStorage(action) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(userActions));
 }
 
-// Link Tracking Actions With Their User
-function linkActionToUser(action, userId) {
-    action.userId = userId;
-    saveToLocalStorage(action);
-}
-
 // Track clicks
 document.addEventListener("click", function(event) {
     const action = {
@@ -31,7 +23,7 @@ document.addEventListener("click", function(event) {
         x: event.clientX,
         y: event.clientY
     };
-    linkActionToUser(action, user_id);
+    saveToLocalStorage(action);
     console.log("Click tracked:", action);
 });
 
@@ -49,7 +41,7 @@ document.addEventListener("keydown", function(event) {
     }
 
     const action = {
-          type: "keydown",
+        type: "keydown",
         timestamp: new Date().toISOString(),
         key: event.key,
         target: el.id || el.tagName
@@ -88,9 +80,53 @@ document.addEventListener("wheel", function(event) {
     lastScrollY = currentScrollY;
     lastScrollVelocity = velocity;
 
-    linkActionToUser(action, user_id);
+    saveToLocalStorage(action);
     console.log("Scroll tracked:", action);
 });
+
+// Track mouse movement (sampled, not every pixel-level event)
+let lastMouseX = null;
+let lastMouseY = null;
+let lastMouseTime = null;
+let latestMousePos = null;
+
+document.addEventListener("mousemove", function(event) {
+    latestMousePos = { x: event.clientX, y: event.clientY };
+});
+
+setInterval(function() {
+    if (!latestMousePos) return;
+
+    const now = Date.now();
+    const { x, y } = latestMousePos;
+
+    let velocity = 0;
+    let angle = null;
+    if (lastMouseTime !== null) {
+        const dt = (now - lastMouseTime) / 1000;
+        const dx = x - lastMouseX;
+        const dy = y - lastMouseY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        velocity = dt > 0 ? distance / dt : 0;
+        angle = Math.atan2(dy, dx);
+    }
+
+    const action = {
+        type: "mousemove",
+        timestamp: new Date().toISOString(),
+        x: x,
+        y: y,
+        velocity: velocity,
+        angle: angle
+    };
+
+    lastMouseX = x;
+    lastMouseY = y;
+    lastMouseTime = now;
+    latestMousePos = null;
+
+    saveToLocalStorage(action);
+}, 100);
 
 // Get all tracked data from localStorage
 function getTrackedData() {
@@ -107,40 +143,91 @@ function clearTrackedData() {
 function displayTrackedData() {
     const data = loadTrackingData();
     const container = document.getElementById("tracking-display");
-    
+
     if (!container) {
         console.warn("No element with id 'tracking-display' found on page");
         return;
     }
-    
+
     if (data.length === 0) {
         container.innerHTML = "<p>No tracking data yet</p>";
         return;
     }
-    
+
     let html = `<h3>Tracked Actions (${data.length})</h3>`;
     html += "<table style='border-collapse: collapse; width: 100%;'>";
     html += "<tr style='background: #f0f0f0;'><th style='border: 1px solid #ddd; padding: 8px;'>Type</th><th style='border: 1px solid #ddd; padding: 8px;'>Target</th><th style='border: 1px solid #ddd; padding: 8px;'>Time</th><th style='border: 1px solid #ddd; padding: 8px;'>Details</th></tr>";
-    
+
     data.forEach((action, index) => {
         const details = action.key || `${action.x}, ${action.y}` || action.direction || "";
         html += `<tr style='${index % 2 === 0 ? "background: #fff;" : "background: #f9f9f9;"}'><td style='border: 1px solid #ddd; padding: 8px;'>${action.type}</td><td style='border: 1px solid #ddd; padding: 8px;'>${action.target}</td><td style='border: 1px solid #ddd; padding: 8px; font-size: 12px;'>${new Date(action.timestamp).toLocaleTimeString()}</td><td style='border: 1px solid #ddd; padding: 8px;'>${details}</td></tr>`;
     });
-    
+
     html += "</table>";
     html += `<p style='margin-top: 10px;'><button onclick='clearTrackedData(); displayTrackedData()'>Clear Data</button></p>`;
-    
+
     container.innerHTML = html;
 }
 
 // Send tracked actions to server
+let sendInProgress = false;
+let consecutiveFailures = 0;
+
 function sendTrackingData() {
+    if (sendInProgress) return;
     const userActions = loadTrackingData();
     if (userActions.length > 0) {
+        sendInProgress = true;
         fetch("/api/track", {
             method: "POST",
+            credentials: "same-origin",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(userActions)
-        }).catch(err => console.error("Tracking error:", err));
+        }).then(response => {
+            if (response.ok) {
+                clearTrackedData();
+                consecutiveFailures = 0;
+            } else {
+                consecutiveFailures++;
+            }
+        }).catch(err => {
+            console.error("Tracking error:", err);
+            consecutiveFailures++;
+        }).finally(() => { sendInProgress = false; });
     }
 }
+
+// Best-effort send for when the page is closing/hiding. sendBeacon is
+// fire-and-forget (no response to confirm success), but the browser
+// guarantees it gets dispatched even as the page tears down, which a
+// normal fetch() does not guarantee.
+function sendTrackingDataViaBeacon() {
+    const userActions = loadTrackingData();
+    if (userActions.length === 0) return;
+    if (navigator.sendBeacon) {
+        const blob = new Blob([JSON.stringify(userActions)], { type: "application/json" });
+        navigator.sendBeacon("/api/track", blob);
+        clearTrackedData();
+    } else {
+        sendTrackingData();
+    }
+}
+
+// Flush periodically while the page is open
+setInterval(sendTrackingData, 5000);
+
+// Retry sooner after a failure instead of waiting the full interval,
+// so a brief connectivity blip doesn't compound data loss.
+setInterval(function() {
+    if (consecutiveFailures > 0 && consecutiveFailures < 5) {
+        sendTrackingData();
+    }
+}, 3000);
+
+// Flush whenever the tab is hidden/closed/navigated away from
+document.addEventListener("visibilitychange", function() {
+    if (document.visibilityState === "hidden") {
+        sendTrackingDataViaBeacon();
+    }
+});
+window.addEventListener("pagehide", sendTrackingDataViaBeacon);
