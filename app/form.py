@@ -22,7 +22,6 @@ class RegistrationForm(FlaskForm):
         _('I have read and agree to the Terms of Service and Privacy Policy'),
         validators=[DataRequired(message=_('You must accept the Terms of Service and Privacy Policy to create an account.'))])
     submit = SubmitField(_('Register'))
-
     def validate_username(self, username):
         user = db.session.scalar(
             sa.select(User).where(User.username == username.data))
