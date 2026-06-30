@@ -1,0 +1,57 @@
+{% extends "Base.html" %}
+
+{% block content %}
+<h1>{{ _('Tracking Data') }}</h1>
+<div class="col-auto">
+    <a href="{{ url_for('admin_tracking_export', user=user_filter) }}" class="btn btn-success">{{ _('Export CSV') }}</a>
+</div>
+<form method="get" action="{{ url_for('admin_tracking') }}" class="row g-2 mb-3">
+    <div class="col-auto">
+        <input type="text" name="user" class="form-control" placeholder="{{ _('Filter by username') }}" value="{{ user_filter }}">
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary">{{ _('Filter') }}</button>
+    </div>
+    {% if user_filter %}
+    <div class="col-auto">
+        <a href="{{ url_for('admin_tracking') }}" class="btn btn-secondary">{{ _('Clear') }}</a>
+    </div>
+    {% endif %}
+</form>
+
+<table class="table table-sm table-striped">
+    <thead>
+        <tr>
+            <th>{{ _('Time') }}</th>
+            <th>{{ _('User') }}</th>
+            <th>{{ _('Action') }}</th>
+            <th>{{ _('Target') }}</th>
+            <th>{{ _('Details') }}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for action in actions %}
+        <tr>
+            <td>{{ action.timestamp }}</td>
+            <td>{% if action.user %}{{ action.user.username }}{% else %}<em>{{ _('anonymous') }}</em>{% endif %}</td>
+            <td>{{ action.action_type }}</td>
+            <td>{{ action.target }}</td>
+            <td><small>{{ action.details }}</small></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5">{{ _('No tracked actions yet.') }}</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<nav aria-label="{{ _('Tracking navigation') }}">
+    <ul class="pagination">
+        <li class="page-item{% if not prev_url %} disabled{% endif %}">
+            <a class="page-link" href="{{ prev_url }}">&larr; {{ _('Newer') }}</a>
+        </li>
+        <li class="page-item{% if not next_url %} disabled{% endif %}">
+            <a class="page-link" href="{{ next_url }}">{{ _('Older') }} &rarr;</a>
+        </li>
+    </ul>
+</nav>
+{% endblock %}

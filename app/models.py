@@ -26,6 +26,7 @@ class User(UserMixin, db.Model):
         default=lambda: datetime.now(timezone.utc))
     terms_accepted_at: so.Mapped[Optional[datetime]] = so.mapped_column(
         default=None, nullable=True)
+    is_admin: so.Mapped[bool] = so.mapped_column(default=False)
     posts: so.WriteOnlyMapped['Post'] = so.relationship(
         back_populates='author')
     # following: so.WriteOnlyMapped['User'] = so.relationship(
