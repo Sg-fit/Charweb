@@ -2,9 +2,7 @@
 
 {% block content %}
 <h1>{{ _('Tracking Data') }}</h1>
-<div class="col-auto">
-    <a href="{{ url_for('admin_tracking_export', user=user_filter) }}" class="btn btn-success">{{ _('Export CSV') }}</a>
-</div>
+
 <form method="get" action="{{ url_for('admin_tracking') }}" class="row g-2 mb-3">
     <div class="col-auto">
         <input type="text" name="user" class="form-control" placeholder="{{ _('Filter by username') }}" value="{{ user_filter }}">
@@ -12,12 +10,61 @@
     <div class="col-auto">
         <button type="submit" class="btn btn-primary">{{ _('Filter') }}</button>
     </div>
+    <div class="col-auto form-check d-flex align-items-center">
+        <input type="checkbox" class="form-check-input me-1" id="show_mousemove" name="show_mousemove" value="1" {% if show_mousemove %}checked{% endif %} onchange="this.form.submit()">
+        <label class="form-check-label" for="show_mousemove">{{ _('Show mousemove samples') }}</label>
+    </div>
     {% if user_filter %}
     <div class="col-auto">
         <a href="{{ url_for('admin_tracking') }}" class="btn btn-secondary">{{ _('Clear') }}</a>
     </div>
     {% endif %}
+    <div class="col-auto">
+        <a href="{{ url_for('admin_tracking_export', user=user_filter) }}" class="btn btn-success">{{ _('Export CSV') }}</a>
+    </div>
 </form>
+
+{% if sessions_by_uid %}
+<h2>{{ _('AI defense: sessions on this page') }}</h2>
+<table class="table table-sm table-bordered mb-4">
+    <thead>
+        <tr>
+            <th>{{ _('User') }}</th>
+            <th>{{ _('User-Agent') }}</th>
+            <th>{{ _('Language') }}</th>
+            <th>{{ _('UA check') }}</th>
+            <th>{{ _('Behavioral AI score') }}</th>
+            <th>{{ _('Last seen') }}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for s in sessions_by_uid.values() %}
+        <tr class="{% if s.ua_bot_flag or s.ai_prediction == 'ai' %}table-danger{% endif %}">
+            <td>{% if s.user %}{{ s.user.username }}{% else %}<em>{{ _('anonymous') }}</em>{% endif %}</td>
+            <td><small>{{ s.user_agent }}</small></td>
+            <td>{{ s.accept_language }}</td>
+            <td>
+                {% if s.ua_bot_flag %}
+                    <span class="badge bg-danger" title="{{ s.ua_bot_reason }}">{{ _('flagged') }}</span>
+                {% else %}
+                    <span class="badge bg-success">{{ _('ok') }}</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if s.ai_prediction %}
+                    <span class="badge {{ 'bg-danger' if s.ai_prediction == 'ai' else 'bg-success' }}">
+                        {{ s.ai_prediction }} ({{ '%.0f'|format(s.ai_probability * 100) }}%)
+                    </span>
+                {% else %}
+                    <span class="text-muted">{{ _('not enough data') }}</span>
+                {% endif %}
+            </td>
+            <td><small>{{ s.last_seen }}</small></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
 
 <table class="table table-sm table-striped">
     <thead>
@@ -27,19 +74,27 @@
             <th>{{ _('Action') }}</th>
             <th>{{ _('Target') }}</th>
             <th>{{ _('Details') }}</th>
+            <th>{{ _('Flags') }}</th>
         </tr>
     </thead>
     <tbody>
         {% for action in actions %}
+        {% set s = sessions_by_uid.get(action.session_uid) %}
         <tr>
             <td>{{ action.timestamp }}</td>
             <td>{% if action.user %}{{ action.user.username }}{% else %}<em>{{ _('anonymous') }}</em>{% endif %}</td>
             <td>{{ action.action_type }}</td>
             <td>{{ action.target }}</td>
             <td><small>{{ action.details }}</small></td>
+            <td>
+                {% if s %}
+                    {% if s.ua_bot_flag %}<span class="badge bg-danger" title="{{ s.ua_bot_reason }}">UA</span>{% endif %}
+                    {% if s.ai_prediction == 'ai' %}<span class="badge bg-warning text-dark">AI {{ '%.0f'|format(s.ai_probability * 100) }}%</span>{% endif %}
+                {% endif %}
+            </td>
         </tr>
         {% else %}
-        <tr><td colspan="5">{{ _('No tracked actions yet.') }}</td></tr>
+        <tr><td colspan="6">{{ _('No tracked actions yet.') }}</td></tr>
         {% endfor %}
     </tbody>
 </table>

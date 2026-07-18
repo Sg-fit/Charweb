@@ -2,6 +2,19 @@
 <html lang="en">
 
   <head>
+    <style>
+      .chat-container { display: flex; height: 80vh; border: 1px solid #ddd; }
+      .chat-sidebar { width: 280px; border-right: 1px solid #ddd; overflow-y: auto; }
+      .chat-main { flex: 1; display: flex; flex-direction: column; }
+      .chat-messages { flex: 1; overflow-y: auto; padding: 15px; }
+      .chat-input-area { padding: 10px; border-top: 1px solid #ddd; }
+      .chat-header { padding: 10px; border-bottom: 1px solid #ddd; }
+      .user-item { display: flex; align-items: center; gap: 10px; padding: 10px; cursor: pointer; }
+      .user-item:hover { background: #f0f0f0; }
+      .message { margin: 8px 0; padding: 8px 12px; border-radius: 8px; max-width: 70%; }
+      .sent { background: #007bff; color: white; margin-left: auto; }
+      .received { background: #f0f0f0; }
+    </style>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     {% if title %}
@@ -13,6 +26,70 @@
         href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
         rel="stylesheet">
   </head>
+  {% block scripts %}
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+  <script>
+  const socket = io();
+  const currentUserId = {{ current_user.id }};
+  let currentRoom = null;
+  let currentRecipientId = null;
+
+  // Filter users
+  function filterUsers() {
+      const term = document.getElementById('search-users').value.toLowerCase().trim();
+      const items = document.querySelectorAll('.user-item');
+    
+      items.forEach(item => {
+          const username = item.getAttribute('data-username');
+          item.style.display = username.includes(term) ? 'flex' : 'none';
+      });
+  }
+
+  // Start chat with user
+  function startChat(userId, username) {
+      currentRecipientId = userId;
+      currentRoom = `chat_${Math.min(currentUserId, userId)}_${Math.max(currentUserId, userId)}`;
+    
+      document.getElementById('chat-header').innerHTML = `<strong>Chatting with ${username}</strong>`;
+    
+      // Enable input
+      document.getElementById('message-input').disabled = false;
+      document.getElementById('send-btn').disabled = false;
+    
+      socket.emit('join', { room: currentRoom });
+      document.getElementById('chat-messages').innerHTML = '';
+  }
+
+  // Send message
+  document.getElementById('message-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const input = document.getElementById('message-input');
+      const message = input.value.trim();
+    
+      if (message && currentRoom) {
+          socket.emit('message', {
+              room: currentRoom,
+              message: message,
+              recipient_id: currentRecipientId
+          });
+          input.value = '';
+      }
+  });
+
+  // Receive message
+  socket.on('message', function(data) {
+      const div = document.getElementById('chat-messages');
+      const html = `
+          <div class="message ${data.username === "{{ current_user.username }}" ? 'sent' : 'received'}">
+              <strong>${data.username}</strong>
+              <p>${data.message}</p>
+              <small>${new Date(data.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</small>
+          </div>`;
+      div.innerHTML += html;
+      div.scrollTop = div.scrollHeight;
+  });
+  </script>
+  {% endblock %}
   <body>
     <nav class="navbar navbar-expand-lg bg-body-tertiary">
       <div class="container">
@@ -25,9 +102,20 @@
             <li class="nav-item">
               <a class="nav-link" aria-current="page" href="{{ url_for('home') }}">{{ _('Home') }}</a>
             </li>
+            <!-- Inside your navbar menu -->
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('chat.chat_page') }}">
+                Chat
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('daily') }}">🗓️ Daily</a>
+            </li>
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('ranking') }}">🏆 Rankings</a></li>
             <li class="nav-item">
               <a class="nav-link" aria-current="page" href="{{ url_for('explore') }}">{{ _('Explore') }}</a>
             </li>
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('team_9094') }}">⚡ Team 9094</a></li>
           </ul>
           {% if g.search_form %}
           <form class="navbar-form d-flex" method="get"
@@ -51,6 +139,14 @@
               {% if current_user.is_admin %}
               <li class="nav-item">
                 <a class="nav-link" aria-current="page" href="{{ url_for('admin_tracking') }}">{{ _('Tracking Data') }}</a>
+              </li>
+              {% endif %}
+              <a class="nav-link" href="{{ url_for('admin_tokens') }}">🪙 Tokens</a>
+              {% if current_user.is_authenticated %}
+              <li class="nav-item">
+                <a class="nav-link position-relative" href="/chat/" id="notif-bell" onclick="markRead()">
+                  🔔 <span id="notif-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none">0</span>
+                </a>
               </li>
               {% endif %}
               <li class="nav-item">
@@ -78,5 +174,94 @@
         src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js">
       </script>
     <script src="{{ url_for('static', filename='track.js') }}"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+
+      // Like Button
+      document.querySelectorAll('.like-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const postId = this.getAttribute('data-post-id');
+            
+            fetch(`/like/${postId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+              const countEl = this.querySelector('.like-count');
+              countEl.textContent = data.count;
+                
+              if (data.liked) {
+                this.classList.add('btn-primary');
+                this.classList.remove('btn-outline-primary');
+              } else {
+                this.classList.remove('btn-primary');
+                this.classList.add('btn-outline-primary');
+              }
+            });
+        });
+      });
+
+      // Toggle Comments
+     document.querySelectorAll('.comment-toggle-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const postId = this.getAttribute('data-post-id');
+            const commentsSection = document.getElementById(`comments-${postId}`);
+            commentsSection.style.display = 
+                commentsSection.style.display === 'none' ? 'block' : 'none';
+        });
+    });
+
+      // Submit Comment
+      document.querySelectorAll('.comment-form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const postId = this.getAttribute('data-post-id');
+            const input = this.querySelector('.comment-input');
+            const commentText = input.value.trim();
+
+            if (!commentText) return;
+
+            fetch(`/comment/${postId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ 'body': commentText })
+            })
+            .then(response => {
+                if (response.ok) {
+                    input.value = '';
+                    location.reload(); // Refresh to show new comment
+                }
+            });
+        });
+      });
+    });
+    </script>
+    <script>
+    function loadNotifCount() {
+        fetch('/api/notifications')
+          .then(r => r.json())
+          .then(data => {
+          const badge = document.getElementById('notif-badge');
+            if (badge) {
+              if (data.length > 0) {
+                    badge.textContent = data.length;
+                    badge.style.display = 'inline';
+              } else {
+                    badge.style.display = 'none';
+             }
+            }
+          }).catch(() => {});
+      }
+      function markRead() {
+        fetch('/api/notifications/read', {method: 'POST', credentials: 'same-origin'});
+        const badge = document.getElementById('notif-badge');
+        if (badge) badge.style.display = 'none';
+      }
+      {% if current_user.is_authenticated %}
+      setInterval(loadNotifCount, 10000);
+      loadNotifCount();
+      {% endif %}
+      </script>
     </body>
 </html>

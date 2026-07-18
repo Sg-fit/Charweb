@@ -3,8 +3,11 @@ from wtforms import StringField, PasswordField, BooleanField, SubmitField, TextA
 from wtforms.validators import DataRequired, ValidationError, Email, EqualTo, Length
 from app.models import User
 from app import db
+from flask_wtf.file import FileField, FileAllowed, FileRequired
 import sqlalchemy as sa
 from flask_babel import lazy_gettext as _
+from app.config import Config  # or directly the variable if you moved it
+from app.config import ALLOWED_EXTENSIONS
 
 class LoginForm(FlaskForm):
     username = StringField(_('Username'), validators=[DataRequired(message=_('This field is required.'))])
@@ -50,11 +53,14 @@ class EditProfileForm(FlaskForm):
             if user is not None:
                 raise ValidationError(_('Please use a different username.'))
             
+
 class PostForm(FlaskForm):
     post = TextAreaField(_('Say something'), validators=[
-        DataRequired(message=_('This field is required.')), Length(min=1, max=140, message=_('Field must be between %(min)d and %(max)d characters long.'))])
-    submit = SubmitField(_('Submit'))
-
+        DataRequired(), Length(min=1, max=500)])
+    image = FileField('Image/GIF', validators=[
+        FileAllowed(ALLOWED_EXTENSIONS, 'Images and GIFs only!')])
+    submit = SubmitField(_('Post'))
+    
 class EmptyForm(FlaskForm):
     submit = SubmitField(_('Submit'))
 
