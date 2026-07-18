@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlparse
 from flask import render_template, flash, redirect, url_for, request, abort, Response, current_app, jsonify, session
 from flask_login import login_user, logout_user, current_user, login_required
 from flask_babel import _
@@ -24,6 +24,14 @@ def before_request():
     if current_user.is_authenticated:
         current_user.last_seen = datetime.now(timezone.utc)
         db.session.commit()
+
+
+def _is_safe_next_url(target):
+    if not target:
+        return False
+    normalized = target.replace('\\', '/')
+    parsed = urlparse(normalized)
+    return parsed.scheme == '' and parsed.netloc == '' and normalized.startswith('/')
 
 
 def allowed_file(filename):
@@ -145,7 +153,7 @@ def login():
             return redirect(url_for('login'))
         login_user(user, remember=form.remember_me.data)
         next_page = request.args.get('next')
-        if not next_page or urlsplit(next_page).netloc != '':
+        if not _is_safe_next_url(next_page):
             next_page = url_for('home')
         return redirect(next_page)
     return render_template('Login.html', title=_('Sign In'), form=form)
