@@ -1,0 +1,196 @@
+{% extends "Base.html" %}
+{% block content %}
+<style>
+.cyber-box { background: linear-gradient(135deg,#0a0e27,#1a1040); border: 2px solid #0ff; border-radius: 10px; padding: 15px; color: #0ff; font-family: 'Courier New', monospace; box-shadow: 0 0 20px rgba(0,255,255,0.4); }
+.cyber-box h5 { color: #f0f; text-shadow: 0 0 8px #f0f; }
+.cyber-stat { display:flex; justify-content:space-between; border-bottom:1px dashed #0ff3; padding:2px 0; }
+.cyber-eq { color:#0f0; font-size:0.85em; }
+@keyframes flicker { 0%,100%{opacity:1;} 50%{opacity:0.85;} }
+.cyber-box { animation: flicker 3s infinite; }
+</style>
+<div class="container mt-4">
+    <h2>🗓️ Daily Hub</h2>
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5>Daily Sign-In</h5>
+            <p>💰 Your tokens: <strong>{{ tokens }}</strong></p>
+            {% if already_signed %}
+                <p class="text-success">✅ Already signed in today!</p>
+            {% else %}
+                <form method="post" action="{{ url_for('daily_signin') }}">
+                    <button id="daily-signin-btn" class="btn btn-primary">Sign In (+50 tokens)</button>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if not char %}
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5>Create Your Character</h5>
+            <form method="post" action="{{ url_for('create_character') }}">
+                <input type="text" id="character-name-input" name="name" class="form-control mb-2" placeholder="Hero name" required>
+                <button id="create-character-btn" class="btn btn-success">Create Character</button>
+            </form>
+        </div>
+    </div>
+    {% elif char.is_dead %}
+    <div class="card mb-3 border-danger">
+        <div class="card-body text-center">
+            <h4>💀 Your character has died</h4>
+            <p>Revive now with 50 tokens, or wait until tomorrow for a free revival.</p>
+            <form method="post" action="{{ url_for('revive_character') }}">
+                <button id="revive-character-btn" class="btn btn-danger">Revive (50 tokens)</button>
+            </form>
+        </div>
+    </div>
+    {% else %}
+    <a id="daily-shop-link" href="{{ url_for('equipment_shop') }}" class="btn btn-info mt-2">🏪 Shop</a>
+    <a id="rankings-link" href="{{ url_for('ranking') }}" class="btn btn-warning mt-2">🏆 Rankings</a>
+
+    {% if char.free_points > 0 %}
+    <div class="card mt-3 border-success">
+        <div class="card-body">
+            <h6>✨ {{ char.free_points }} attribute points available!</h6>
+            <div class="d-flex gap-2 flex-wrap">
+                {% for stat in ['strength','speed','magic','recovery','stamina','luck'] %}
+                <form method="post" action="{{ url_for('allocate_point') }}">
+                    <input type="hidden" name="stat" value="{{ stat }}">
+                    <button id="allocate-point-{{ stat }}" class="btn btn-sm btn-outline-success">+1 {{ stat|capitalize }} ({{ char[stat] }})</button>
+                </form>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row mt-3">
+        <div class="col-md-4">
+            <div class="cyber-box mb-3">
+                <h5>>> {{ char.name }}.exe</h5>
+                <div class="cyber-stat"><span>LV</span><span>{{ char.level }}</span></div>
+                <div class="cyber-stat"><span>HP</span><span>{{ char.hp }}/{{ char.max_hp }}</span></div>
+                <div class="cyber-stat"><span>ATK</span><span>{{ char.attack }}</span></div>
+                <div class="cyber-stat"><span>DEF</span><span>{{ char.defense }}</span></div>
+                <div class="cyber-stat"><span>STR</span><span>{{ char.strength }}</span></div>
+                <div class="cyber-stat"><span>SPD</span><span>{{ char.speed }}</span></div>
+                <div class="cyber-stat"><span>MAG</span><span>{{ char.magic }}</span></div>
+                <div class="cyber-stat"><span>STA</span><span>{{ char.stamina }}</span></div>
+                <div class="cyber-stat"><span>REC</span><span>{{ char.recovery }}</span></div>
+                <div class="cyber-stat"><span>LUCK</span><span>{{ char.luck }}</span></div>
+                <div class="cyber-stat"><span>WPN_DUR</span><span>{{ char.weapon_durability }}%</span></div>
+                <div class="cyber-stat"><span>MAGIC_UNLOCKED</span><span>{{ 'YES' if char.can_use_magic else 'NO' }}</span></div>
+                <hr style="border-color:#0ff5">
+                <p class="mb-1">// EQUIPPED_MODULES</p>
+                {% for inv in char.inventory if inv.is_equipped %}
+                <div class="cyber-eq">[{{ inv.equipment.equipment_type|upper }}] {{ inv.equipment.emoji }} {{ inv.equipment.name }}</div>
+                {% else %}
+                <div class="cyber-eq">-- none --</div>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5>🏰 Dungeon Floor {{ char.floor }} <small class="text-muted">(recommended lv {{ (char.floor-1)*10+1 }}-{{ char.floor*10 }})</small></h5>
+                    <pre id="dungeon-screen" style="background:#111;color:#0f0;padding:10px;border-radius:4px;font-size:13px;min-height:120px">Loading dungeon...</pre>
+                    {% if result %}
+                    <div class="alert alert-info">
+                        {% for r in result %}<p class="mb-1">{{ r }}</p>{% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if pending_fight %}
+                    <div class="alert alert-danger mt-2">
+                        <strong>{{ enemy.icon or '⚔️' }} Fight or flee?</strong>
+                        <div class="d-flex gap-2 mt-2">
+                            <form method="post" action="{{ url_for('dungeon_action') }}">
+                                <input type="hidden" name="action" value="fight">
+                                <button id="dungeon-fight-btn" class="btn btn-danger">⚔️ Fight</button>
+                            </form>
+                            <form method="post" action="{{ url_for('dungeon_action') }}">
+                                <input type="hidden" name="action" value="flee">
+                                <button id="dungeon-flee-btn" class="btn btn-secondary">🏃 Flee</button>
+                            </form>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="d-flex gap-2 flex-wrap">
+                        <form method="post" action="{{ url_for('dungeon_action') }}">
+                            <input type="hidden" name="action" value="explore">
+                            <button id="dungeon-explore-btn" class="btn btn-danger">⚔️ Explore (5 tokens)</button>
+                        </form>
+                        <form method="post" action="{{ url_for('dungeon_action') }}">
+                            <input type="hidden" name="action" value="rest">
+                            <button id="dungeon-rest-btn" class="btn btn-secondary">💤 Rest</button>
+                        </form>
+                        <form method="post" action="{{ url_for('dungeon_action') }}">
+                            <input type="hidden" name="action" value="descend">
+                            <button id="dungeon-descend-btn" class="btn btn-warning">⬇️ Descend</button>
+                        </form>
+                        <form method="post" action="{{ url_for('dungeon_action') }}">
+                            <input type="hidden" name="action" value="ascend">
+                            <button id="dungeon-ascend-btn" class="btn btn-outline-warning">⬆️ Ascend</button>
+                        </form>
+                        {% if char.can_use_magic %}
+                        <form method="post" action="{{ url_for('cast_spell') }}">
+                            <button id="dungeon-cast-heal-btn" class="btn btn-info">✨ Cast Heal (10 MAG)</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mt-3">
+        <div class="card-body">
+            <h6>🎒 Inventory</h6>
+            {% set types = ['weapon','armor','helmet','boots','accessory'] %}
+            {% set type_emojis = {'weapon':'⚔️','armor':'🛡️','helmet':'⛑️','boots':'👢','accessory':'💍'} %}
+            {% for t in types %}
+                {% set items = char.inventory | selectattr('equipment.equipment_type','equalto',t) | list %}
+                {% if items %}
+                <p class="mb-1"><strong>{{ type_emojis[t] }} {{ t|capitalize }}</strong></p>
+                {% for inv in items %}
+                <form method="post" action="{{ url_for('equip_item', inv_id=inv.id) }}" style="display:inline">
+                    <button id="equip-item-{{ inv.id }}" class="btn btn-sm {% if inv.is_equipped %}btn-success{% else %}btn-outline-secondary{% endif %} mb-1">
+                        {{ inv.equipment.emoji }} {{ inv.equipment.name }}
+                        {% if inv.is_equipped %}✅{% endif %}
+                    </button>
+                </form>
+                {% endfor %}
+                <br>
+                {% endif %}
+            {% endfor %}
+            {% if not char.inventory %}
+            <p class="text-muted">No items yet. Visit the shop!</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.addEventListener('submit', function(){ sessionStorage.setItem('scrollY', window.scrollY); });
+window.addEventListener('load', function(){
+    const y = sessionStorage.getItem('scrollY');
+    if (y) { window.scrollTo(0, parseInt(y)); sessionStorage.removeItem('scrollY'); }
+});
+const dungeonFrames = [
+"+--+--+--+--+--+\\n|  |  |🕯️|  |  |\\n+--+--+--+--+--+\\n|  | 🧙|  |  |  |\\n+--+--+--+--+--+\\n|  |  |  |🗝️|  |\\n+--+--+--+--+--+",
+"+--+--+--+--+--+\\n|👣|  |  |  |  |\\n+--+--+--+--+--+\\n|  |🧙|  |  |💎|\\n+--+--+--+--+--+\\n|  |  |  |  |  |\\n+--+--+--+--+--+",
+"+--+--+--+--+--+\\n|  |  |  |  |  |\\n+--+--+--+--+--+\\n|  |  |🧙|  |  |\\n+--+--+--+--+--+\\n|🔥|  |  |  |👻|\\n+--+--+--+--+--+",
+];
+let frameIdx = 0;
+function renderDungeon() {
+    const el = document.getElementById('dungeon-screen');
+    if (!el) return;
+    el.textContent = dungeonFrames[frameIdx % dungeonFrames.length] + "\\n\\nFloor {{ char.floor if char else 1 }} - Tokens: {{ tokens }}";
+    frameIdx++;
+}
+renderDungeon();
+setInterval(renderDungeon, 2000);
+</script>
+{% endblock %}

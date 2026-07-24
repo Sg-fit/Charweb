@@ -1,0 +1,21 @@
+{% extends "Base.html" %}
+{% block content %}
+<h2>Token Management</h2>
+<form method="post">
+    <div class="row g-2">
+        <div class="col-auto">
+            <select name="user_id" class="form-select">
+                {% for u in users %}
+                <option value="{{ u.id }}">{{ u.username }} ({{ u.tokens }} tokens)</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-auto">
+            <input type="number" name="amount" class="form-control" placeholder="Amount">
+        </div>
+        <div class="col-auto">
+            <button class="btn btn-primary">Add Tokens</button>
+        </div>
+    </div>
+</form>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "Base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>All Users ({{ users|length }})</h1>
+    
+    <div class="mb-3">
+        <input type="text" id="search-input" class="form-control" 
+               placeholder="Search by username or email..." onkeyup="filterUsers()">
+    </div>
+
+    <table class="table table-striped table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>ID</th>
+                <th>Avatar</th>
+                <th>Username</th>
+                <th>Email</th>
+                <th>About</th>
+                <th>Admin</th>
+                <th>Joined</th>
+            </tr>
+        </thead>
+        <tbody id="users-table">
+            {% for user in users %}
+            <tr data-username="{{ user.username | lower }}" data-email="{{ user.email | lower }}">
+                <td>{{ user.id }}</td>
+                <td>
+                    <img src="{{ user.avatar(40) }}" alt="" class="rounded-circle">
+                </td>
+                <td><strong>{{ user.username }}</strong></td>
+                <td>{{ user.email }}</td>
+                <td>{{ user.about_me or '—' }}</td>
+                <td>
+                    {% if user.is_admin %}
+                        <span class="badge bg-danger">Admin</span>
+                    {% else %}
+                        <span class="badge bg-secondary">User</span>
+                    {% endif %}
+                </td>
+                <td>{{ moment(user.last_seen).fromNow() if user.last_seen else '—' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterUsers() {
+    const term = document.getElementById('search-input').value.toLowerCase().trim();
+    const rows = document.querySelectorAll('#users-table tr');
+    
+    rows.forEach(row => {
+        const username = row.getAttribute('data-username') || '';
+        const email = row.getAttribute('data-email') || '';
+        row.style.display = (username.includes(term) || email.includes(term)) ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends "Base.html" %}
+{% block content %}
+<style>
+.eq-wrap { background: radial-gradient(circle at 20% 10%, #1a0033 0%, #05010f 60%); color: #e0e0ff; font-family: 'Courier New', monospace; padding: 30px; border-radius: 12px; border: 1px solid #0ff4; box-shadow: 0 0 40px rgba(0,255,255,0.15), inset 0 0 60px rgba(255,0,255,0.05); }
+.eq-back { color: #f0f; text-decoration: none; font-size: 0.85rem; }
+.eq-back:hover { text-shadow: 0 0 8px #f0f; }
+.eq-title { font-size: 2.2rem; font-weight: bold; color: #0ff; text-shadow: 0 0 10px #0ff, 0 0 20px #f0f; letter-spacing: 2px; margin: 10px 0 5px; }
+.eq-panel { background: rgba(10, 5, 30, 0.6); border: 1px solid #0ff5; border-left: 4px solid #f0f; border-radius: 6px; padding: 18px 20px; margin: 20px 0; }
+.eq-panel h4 { color: #0ff; text-shadow: 0 0 6px #0ff8; margin-bottom: 10px; }
+.eq-panel h4::before { content: "// "; color: #f0f; }
+.eq-tag { display: inline-block; background: rgba(0,255,255,0.08); border: 1px solid #0ff8; color: #0ff; padding: 3px 10px; border-radius: 20px; font-size: 0.8rem; margin: 3px 4px 3px 0; }
+</style>
+<div class="eq-wrap">
+    <a class="eq-back" href="{{ url_for('team_9094') }}">&larr; BACK_TO_TEAM_9094</a>
+    <div class="eq-title">{{ icon }} {{ sub_name }}</div>
+    <div class="eq-panel">
+        <h4>OVERVIEW</h4>
+        <p>{{ overview }}</p>
+    </div>
+    <div class="eq-panel">
+        <h4>FOCUS_AREAS</h4>
+        <div>
+        {% for tag in tags %}
+            <span class="eq-tag">{{ tag }}</span>
+        {% endfor %}
+        </div>
+    </div>
+    {% if notes %}
+    <div class="eq-panel">
+        <h4>NOTES</h4>
+        <p>{{ notes }}</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

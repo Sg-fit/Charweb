@@ -1,0 +1,113 @@
+{% extends "Base.html" %}
+{% block content %}
+<style>
+.eq-wrap {
+    background: radial-gradient(circle at 20% 10%, #1a0033 0%, #05010f 60%);
+    color: #e0e0ff;
+    font-family: 'Courier New', monospace;
+    padding: 30px;
+    border-radius: 12px;
+    border: 1px solid #0ff4;
+    box-shadow: 0 0 40px rgba(0,255,255,0.15), inset 0 0 60px rgba(255,0,255,0.05);
+    position: relative;
+    overflow: hidden;
+}
+.eq-wrap::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(0deg, rgba(0,255,255,0.03) 0px, transparent 2px, transparent 4px);
+    pointer-events: none;
+}
+.eq-title { font-size: 2.4rem; font-weight: bold; color: #0ff; text-shadow: 0 0 10px #0ff, 0 0 20px #f0f; letter-spacing: 2px; margin-bottom: 0; }
+.eq-subtitle { color: #f0f; text-shadow: 0 0 8px #f0f; font-size: 1.1rem; margin-bottom: 25px; letter-spacing: 1px; }
+.eq-panel { background: rgba(10, 5, 30, 0.6); border: 1px solid #0ff5; border-left: 4px solid #f0f; border-radius: 6px; padding: 18px 20px; margin-bottom: 20px; }
+.eq-panel h4 { color: #0ff; text-shadow: 0 0 6px #0ff8; margin-bottom: 10px; font-size: 1.15rem; }
+.eq-panel h4::before { content: "// "; color: #f0f; }
+.eq-tag { display: inline-block; background: rgba(0,255,255,0.08); border: 1px solid #0ff8; color: #0ff; padding: 3px 10px; border-radius: 20px; font-size: 0.8rem; margin: 3px 4px 3px 0; }
+.eq-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-top: 10px; }
+.eq-stat { background: rgba(255,0,255,0.05); border: 1px solid #f0f4; border-radius: 6px; padding: 12px; text-align: center; }
+.eq-stat .num { font-size: 1.6rem; color: #0ff; text-shadow: 0 0 8px #0ff; font-weight: bold; }
+.eq-stat .lbl { font-size: 0.75rem; color: #b0b0ff; text-transform: uppercase; letter-spacing: 1px; }
+.eq-footer { text-align: center; color: #6060a0; font-size: 0.8rem; margin-top: 20px; letter-spacing: 2px; }
+.eq-links a { color: #0ff; text-decoration: none; }
+.eq-links a:hover { text-shadow: 0 0 8px #0ff; }
+.eq-sub-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 10px; }
+.eq-sub-card {
+    display: block; background: rgba(0,255,255,0.05); border: 1px solid #0ff6; border-radius: 8px;
+    padding: 16px; text-align: center; color: #0ff; text-decoration: none; transition: all 0.2s;
+}
+.eq-sub-card:hover { background: rgba(255,0,255,0.1); border-color: #f0f; color: #f0f; box-shadow: 0 0 15px rgba(255,0,255,0.4); text-decoration: none; }
+.eq-sub-card .icon { font-size: 1.8rem; display: block; margin-bottom: 6px; }
+@keyframes eqPulse { 0%,100%{opacity:1;} 50%{opacity:0.9;} }
+.eq-wrap { animation: eqPulse 4s infinite; }
+</style>
+
+<div class="eq-wrap">
+    <div class="eq-title">&gt; TEAM_9094</div>
+    <div class="eq-subtitle">:: EARTHQUAKERS :: FRIENDS CENTRAL SCHOOL :: PHILADELPHIA, PA ::</div>
+
+    <div class="eq-panel">
+        <h4>INTRODUCTION</h4>
+        <p>FRC Team 9094, the EarthQuakers, is the FIRST Robotics Competition
+        team of Friends Central School, founded in 2022. The team's identity
+        fuses the school's Quaker roots with the energy of competitive
+        robotics — a gear-shaped emblem framing the Philadelphia skyline,
+        cracked by jagged seismic lines in navy and green, capturing both
+        where the team comes from and the disruptive energy it brings to
+        the field.</p>
+        <p>In just three seasons, the EarthQuakers have competed in four
+        full FRC game cycles — Charged Up, Crescendo, Reefscape, and
+        Rebuilt — and qualified for the FIRST Championship (Worlds),
+        the highest level of competition in the program.</p>
+    </div>
+
+    <div class="eq-panel">
+        <h4>TEAM_STATS</h4>
+        <div class="eq-stat-grid">
+            <div class="eq-stat"><div class="num">9094</div><div class="lbl">Team Number</div></div>
+            <div class="eq-stat"><div class="num">2022</div><div class="lbl">Founded</div></div>
+            <div class="eq-stat"><div class="num">~30</div><div class="lbl">Students</div></div>
+            <div class="eq-stat"><div class="num">3</div><div class="lbl">Coaches</div></div>
+            <div class="eq-stat"><div class="num">WORLDS</div><div class="lbl">Qualified</div></div>
+        </div>
+        <p style="margin-top:14px; font-size:0.9rem;">Lead Coach: <strong>Matt Schoffel</strong></p>
+    </div>
+
+    <div class="eq-panel">
+        <h4>SEASONS_COMPETED</h4>
+        <div>
+            <span class="eq-tag">CHARGED UP (2023)</span>
+            <span class="eq-tag">CRESCENDO (2024)</span>
+            <span class="eq-tag">REEFSCAPE (2025)</span>
+            <span class="eq-tag">REBUILT</span>
+        </div>
+        <p style="margin-top:10px; font-size:0.9rem;">Full match history and rankings archived on
+        <a href="https://www.thebluealliance.com/team/9094" target="_blank" style="color:#f0f;">The Blue Alliance</a>.</p>
+    </div>
+
+    <div class="eq-panel">
+        <h4>MISSION :: SUBTEAMS</h4>
+        <p>Every build season, the EarthQuakers design, machine, wire, and
+        code a competition robot from scratch across six coordinated
+        subteams. Explore each one below.</p>
+        <div class="eq-sub-grid">
+            <a class="eq-sub-card" href="{{ url_for('team_mechanical') }}"><span class="icon">⚙️</span>MECHANICAL</a>
+            <a class="eq-sub-card" href="{{ url_for('team_electrical') }}"><span class="icon">🔌</span>ELECTRICAL</a>
+            <a class="eq-sub-card" href="{{ url_for('team_software') }}"><span class="icon">💻</span>SOFTWARE</a>
+            <a class="eq-sub-card" href="{{ url_for('team_strategy') }}"><span class="icon">🎯</span>STRATEGY</a>
+            <a class="eq-sub-card" href="{{ url_for('team_outreach') }}"><span class="icon">🤝</span>OUTREACH</a>
+            <a class="eq-sub-card" href="{{ url_for('team_cad') }}"><span class="icon">📐</span>CAD</a>
+        </div>
+    </div>
+
+    <div class="eq-panel eq-links">
+        <h4>LINKS</h4>
+        <p>🌐 <a href="https://www.earthquakers9094.org" target="_blank">earthquakers9094.org</a></p>
+        <p>📸 <a href="https://instagram.com/earthquakers9094" target="_blank">@earthquakers9094</a></p>
+        <p>📊 <a href="https://www.thebluealliance.com/team/9094" target="_blank">The Blue Alliance — Team 9094</a></p>
+    </div>
+
+    <div class="eq-footer">SYSTEM: EARTHQUAKERS_OS &nbsp;|&nbsp; STATUS: ACTIVE &nbsp;|&nbsp; CHARWEB.NET</div>
+</div>
+{% endblock %}

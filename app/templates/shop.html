@@ -1,0 +1,65 @@
+{% extends "Base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h2>🏪 Equipment Shop</h2>
+    <p>💰 Your tokens: <strong>{{ tokens }}</strong></p>
+    <a href="{{ url_for('daily') }}" class="btn btn-secondary mb-3">← Back</a>
+    <div class="row">
+    {% for item in items %}
+    <div class="col-md-4 mb-3">
+        <div class="card border-{% if item.rarity == 'legendary' %}warning{% elif item.rarity == 'epic' %}purple{% elif item.rarity == 'rare' %}primary{% else %}secondary{% endif %}">
+            <div class="card-body">
+                <h5>{{ item.emoji }} {{ item.name }}</h5>
+                <span class="badge bg-{% if item.rarity == 'legendary' %}warning{% elif item.rarity == 'epic' %}danger{% elif item.rarity == 'rare' %}primary{% else %}secondary{% endif %}">{{ item.rarity }}</span>
+                <p class="mt-2 mb-1">Type: {{ item.equipment_type }}</p>
+                {% if item.attack_bonus %}ATK +{{ item.attack_bonus }}<br>{% endif %}
+                {% if item.defense_bonus %}DEF +{{ item.defense_bonus }}<br>{% endif %}
+                {% if item.hp_bonus %}HP +{{ item.hp_bonus }}<br>{% endif %}
+                <p class="mt-2">💰 {{ item.token_cost }} tokens | Req. Lv {{ item.required_level }}</p>
+                {% if item.id in owned_ids %}
+                <button class="btn btn-success btn-sm" disabled>✅ Owned</button>
+                {% elif char.level < item.required_level %}
+                <button class="btn btn-secondary btn-sm" disabled>🔒 Lv {{ item.required_level }} required</button>
+                {% else %}
+                <form method="post" action="{{ url_for('buy_equipment', item_id=item.id) }}">
+                    <button id="buy-equipment-{{ item.id }}" class="btn btn-primary btn-sm" {% if tokens < item.token_cost %}disabled{% endif %}>Buy</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    </div>
+    </div>
+    <hr>
+    <h4>🧪 Magic Shop</h4>
+    <div class="row">
+        <div class="col-md-4 mb-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5>🧪 Magic Drug</h5>
+                    <p>Unlocks magic abilities. +5 Magic.</p>
+                    <p>💰 25 tokens</p>
+                    <form method="post" action="{{ url_for('buy_magic_potion') }}">
+                        <button id="buy-magic-potion-btn" class="btn btn-primary btn-sm" {% if tokens < 25 %}disabled{% endif %}>Buy</button>
+                    </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5>📖 Spellbook</h5>
+                    <p>Open to learn a random spell. Requires magic drug first.</p>
+                    <p>💰 40 tokens</p>
+                    <form method="post" action="{{ url_for('buy_spellbook') }}">
+                        <button id="buy-spellbook-btn" class="btn btn-primary btn-sm" {% if tokens < 40 %}disabled{% endif %}>Open</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+</div>
+{% endblock %}

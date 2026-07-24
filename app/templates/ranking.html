@@ -1,0 +1,21 @@
+{% extends "Base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h2>🏆 Dungeon Rankings</h2>
+    <table class="table table-striped">
+        <thead><tr><th>#</th><th>Character</th><th>Player</th><th>Level</th><th>Floor</th><th>Enemies</th></tr></thead>
+        <tbody>
+        {% for c in chars %}
+        <tr {% if c.user_id == current_user.id %}class="table-warning"{% endif %}>
+            <td>{{ loop.index }}</td>
+            <td>{{ c.name }}</td>
+            <td>{{ c.user.username }}</td>
+            <td>⭐ {{ c.level }}</td>
+            <td>🏰 {{ c.floor }}</td>
+            <td>⚔️ {{ c.enemies_defeated }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
