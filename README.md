@@ -1,9 +1,15 @@
+---
+layout: default
+title: Charweb Research
+---
+
 # Charweb: Behavioral Biometric Detection of AI Web Agents
 
 A controlled social-web testbed and detection pipeline for distinguishing human users from AI browsing agents — including scripted bots, LLM-driven agents, and custom-built autonomous agents — using passively collected interaction motor features (mouse, keystroke, click, scroll timing).
 
 **Live testbed:** [charweb.net](https://charweb.net) · **Repo:** [github.com/Sg-fit/Charweb](https://github.com/Sg-fit/Charweb)
 *Testbed is live on a local server — caution: may occasionally be unavailable due to server errors; repo may not fully reflect the latest local state.*
+
 ---
 
 ## 1. Overview
@@ -86,7 +92,7 @@ Leave-one-architecture-out results (classifier trained on all other architecture
 
 While diagnosing why Fenris (a custom "Jarvis-like" autonomous agent) had an 80% task-unknown rate, we found this wasn't a labeling-window artifact — even a 1-hour carry-forward window only reduced it to 72.7%. The real cause: **Fenris interacts almost entirely through generic, non-task-specific UI elements** (bare `BUTTON`/`submit`/`mousemove`), rarely touching the distinctly-tagged fields (`about_me`, `q`, `mission-timer`, etc.) that anchor task labeling for every other architecture, and shows multi-hour idle gaps between activity bursts.
 
-This suggests custom/non-frontier agents may not just be *harder to detect* — they may not even fit the *analytical categories* (task taxonomies, feature assumptions) built around frontier and task-following agents.However, due to the lack of data, this finding might be mitegated by the small data set. 
+This suggests custom/non-frontier agents may not just be *harder to detect* — they may not even fit the *analytical categories* (task taxonomies, feature assumptions) built around frontier and task-following agents. However, due to the lack of data, this finding might be mitigated by the small data set.
 
 ## 6. Current Limitations
 
