@@ -1,7 +1,3 @@
----
-layout: default
-title: Charweb Research
----
 # Charweb: Behavioral Biometric Detection of AI Web Agents
 
 A controlled social-web testbed and detection pipeline for distinguishing human users from AI browsing agents — including scripted bots, LLM-driven agents, and custom-built autonomous agents — using passively collected interaction motor features (mouse, keystroke, click, scroll timing).
