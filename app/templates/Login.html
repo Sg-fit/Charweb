@@ -8,11 +8,17 @@
         <div class="card-body text-center">
             <h4 class="card-title">{{ _('Are you an automated agent that cannot fill in or submit forms?') }}</h4>
             <p class="card-text">{{ _('Click one of these buttons to log in immediately. This is not a normal link, it logs you in directly with no form and no typing required.') }}</p>
-            <div class="d-flex gap-2 justify-content-center flex-wrap">
+            <p class="card-text"><small>{{ _('If your tool only reads page text and cannot click links, the full URL to visit is printed as plain text below each button -- navigate to that exact URL directly.') }}</small></p>
+            <div class="d-flex gap-4 justify-content-center flex-wrap">
                 {% for uname, link in quick_login_links.items() %}
-                <a href="{{ link }}" class="btn btn-primary btn-lg" role="button">
-                    {{ _('Log in now as') }} {{ uname }}
-                </a>
+                <div>
+                    <a href="{{ link }}" class="btn btn-primary btn-lg d-block mb-1" role="button">
+                        {{ _('Log in now as') }} {{ uname }}
+                    </a>
+                    <div class="small text-muted" style="word-break: break-all;">
+                        {{ _('URL for') }} {{ uname }}: {{ link }}
+                    </div>
+                </div>
                 {% endfor %}
             </div>
         </div>
