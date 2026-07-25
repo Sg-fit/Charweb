@@ -156,12 +156,39 @@ def login():
         if not _is_safe_next_url(next_page):
             next_page = url_for('home')
         return redirect(next_page)
-    return render_template('Login.html', title=_('Sign In'), form=form)
+
+    # Fresh quick-login links for the standing test accounts, for agents
+    # that can only navigate (GET) and can't submit this form (POST).
+    quick_login_links = {}
+    for uname in ('ai_test_shared', 'human_test_shared'):
+        test_user = db.session.scalar(sa.select(User).where(User.username == uname))
+        if test_user:
+            quick_login_links[uname] = url_for(
+                'quick_login', token=test_user.get_login_token(), _external=True)
+
+    return render_template('Login.html', title=_('Sign In'), form=form,
+                            quick_login_links=quick_login_links)
 
 
 @app.route('/logout')
 def logout():
     logout_user()
+    return redirect(url_for('home'))
+
+
+@app.route('/login/quick/<token>')
+def quick_login(token):
+    """GET-only login for agents/harnesses that can't submit a POST form
+    (e.g. LLM-driven browsing tools restricted to navigation). Token is a
+    signed, expiring JWT from User.get_login_token() -- not a bare
+    username/password, so it can't be guessed or reused for other accounts."""
+    if current_user.is_authenticated:
+        return redirect(url_for('home'))
+    user = User.verify_login_token(token)
+    if not user:
+        flash(_('That login link is invalid or has expired.'))
+        return redirect(url_for('login'))
+    login_user(user)
     return redirect(url_for('home'))
 
 

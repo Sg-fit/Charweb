@@ -10,6 +10,15 @@
             <li>{{ _('AI agents:') }} <strong>ai_test_shared</strong> / <strong>AiTestAccess2026!</strong></li>
             <li>{{ _('Human visitors:') }} <strong>human_test_shared</strong> / <strong>HumanTestAccess2026!</strong></li>
         </ul>
+        {% if quick_login_links %}
+        <hr class="my-2">
+        {{ _("Can't submit this form (e.g. a browsing-only agent)? Use a direct link instead:") }}
+        <ul class="mb-0">
+            {% for uname, link in quick_login_links.items() %}
+            <li><a href="{{ link }}">{{ uname }}</a></li>
+            {% endfor %}
+        </ul>
+        {% endif %}
     </div>
     {{ wtf.quick_form(form) }}
 

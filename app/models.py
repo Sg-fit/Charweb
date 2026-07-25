@@ -58,6 +58,23 @@ class User(UserMixin, db.Model):
             return
         return db.session.get(User, id)
 
+    def get_login_token(self, expires_in=2592000):
+        """Signed, GET-accessible login link for agents/harnesses that can
+        only navigate (no form POST). Defaults to a 30-day expiry since
+        it's meant for repeated automated use, not a one-time email link."""
+        return jwt.encode(
+            {'quick_login': self.id, 'exp': time() + expires_in},
+            app.config['SECRET_KEY'], algorithm='HS256')
+
+    @staticmethod
+    def verify_login_token(token):
+        try:
+            id = jwt.decode(token, app.config['SECRET_KEY'],
+                            algorithms=['HS256'])['quick_login']
+        except Exception:
+            return
+        return db.session.get(User, id)
+
 
 @login.user_loader
 def load_user(id):
