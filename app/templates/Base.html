@@ -26,70 +26,7 @@
         href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
         rel="stylesheet">
   </head>
-  {% block scripts %}
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
-  <script>
-  const socket = io();
-  const currentUserId = {{ current_user.id }};
-  let currentRoom = null;
-  let currentRecipientId = null;
-
-  // Filter users
-  function filterUsers() {
-      const term = document.getElementById('search-users').value.toLowerCase().trim();
-      const items = document.querySelectorAll('.user-item');
-    
-      items.forEach(item => {
-          const username = item.getAttribute('data-username');
-          item.style.display = username.includes(term) ? 'flex' : 'none';
-      });
-  }
-
-  // Start chat with user
-  function startChat(userId, username) {
-      currentRecipientId = userId;
-      currentRoom = `chat_${Math.min(currentUserId, userId)}_${Math.max(currentUserId, userId)}`;
-    
-      document.getElementById('chat-header').innerHTML = `<strong>Chatting with ${username}</strong>`;
-    
-      // Enable input
-      document.getElementById('message-input').disabled = false;
-      document.getElementById('send-btn').disabled = false;
-    
-      socket.emit('join', { room: currentRoom });
-      document.getElementById('chat-messages').innerHTML = '';
-  }
-
-  // Send message
-  document.getElementById('message-form').addEventListener('submit', function(e) {
-      e.preventDefault();
-      const input = document.getElementById('message-input');
-      const message = input.value.trim();
-    
-      if (message && currentRoom) {
-          socket.emit('message', {
-              room: currentRoom,
-              message: message,
-              recipient_id: currentRecipientId
-          });
-          input.value = '';
-      }
-  });
-
-  // Receive message
-  socket.on('message', function(data) {
-      const div = document.getElementById('chat-messages');
-      const html = `
-          <div class="message ${data.username === "{{ current_user.username }}" ? 'sent' : 'received'}">
-              <strong>${data.username}</strong>
-              <p>${data.message}</p>
-              <small>${new Date(data.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</small>
-          </div>`;
-      div.innerHTML += html;
-      div.scrollTop = div.scrollHeight;
-  });
-  </script>
-  {% endblock %}
+  {% block scripts %}{% endblock %}
   <body>
     <nav class="navbar navbar-expand-lg bg-body-tertiary">
       <div class="container">
@@ -174,69 +111,6 @@
         src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js">
       </script>
     <script src="{{ url_for('static', filename='track.js') }}"></script>
-    <script>
-      document.addEventListener('DOMContentLoaded', function() {
-
-      // Like Button
-      document.querySelectorAll('.like-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const postId = this.getAttribute('data-post-id');
-            
-            fetch(`/like/${postId}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            })
-            .then(response => response.json())
-            .then(data => {
-              const countEl = this.querySelector('.like-count');
-              countEl.textContent = data.count;
-                
-              if (data.liked) {
-                this.classList.add('btn-primary');
-                this.classList.remove('btn-outline-primary');
-              } else {
-                this.classList.remove('btn-primary');
-                this.classList.add('btn-outline-primary');
-              }
-            });
-        });
-      });
-
-      // Toggle Comments
-     document.querySelectorAll('.comment-toggle-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const postId = this.getAttribute('data-post-id');
-            const commentsSection = document.getElementById(`comments-${postId}`);
-            commentsSection.style.display = 
-                commentsSection.style.display === 'none' ? 'block' : 'none';
-        });
-    });
-
-      // Submit Comment
-      document.querySelectorAll('.comment-form').forEach(form => {
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            const postId = this.getAttribute('data-post-id');
-            const input = this.querySelector('.comment-input');
-            const commentText = input.value.trim();
-
-            if (!commentText) return;
-
-            fetch(`/comment/${postId}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({ 'body': commentText })
-            })
-            .then(response => {
-                if (response.ok) {
-                    input.value = '';
-                    location.reload(); // Refresh to show new comment
-                }
-            });
-        });
-      });
-    });
-    </script>
     <script>
     function loadNotifCount() {
         fetch('/api/notifications')
