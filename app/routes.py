@@ -44,19 +44,24 @@ def allowed_file(filename):
 @login_required
 def home():
     form = PostForm()
-    if form.validate_on_submit():
+    # Agents that can only navigate (GET), not submit forms, can post via
+    # ?post=... instead. Mirrors PostForm's own DataRequired/Length(1,500).
+    get_post = request.args.get('post', '').strip() if request.method == 'GET' else None
+    submitted_via_get = bool(get_post) and len(get_post) <= 500
+    if form.validate_on_submit() or submitted_via_get:
+        post_body = form.post.data if request.method == 'POST' else get_post
         image_filename = None
-        if form.image.data and allowed_file(form.image.data.filename):
+        if request.method == 'POST' and form.image.data and allowed_file(form.image.data.filename):
             filename = secure_filename(form.image.data.filename)
             image_filename = f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{filename}"
             form.image.data.save(os.path.join(app.config['UPLOAD_FOLDER'], image_filename))
 
         try:
-            language = detect(form.post.data)
+            language = detect(post_body)
         except LangDetectException:
             language = 'en'
 
-        post = Post(body=form.post.data, author=current_user, language=language, image_filename=image_filename)
+        post = Post(body=post_body, author=current_user, language=language, image_filename=image_filename)
         db.session.add(post)
         db.session.commit()
         flash(_('Your post is now live!'))
@@ -77,14 +82,14 @@ def home():
                            next_url=next_url,
                            prev_url=prev_url)
 
-@app.route('/comment/<int:post_id>', methods=['POST'])
+@app.route('/comment/<int:post_id>', methods=['GET', 'POST'])
 @login_required
 def comment(post_id):
     post = db.session.get(Post, post_id)
     if not post:
         abort(404)
-    
-    body = request.form.get('body', '').strip()
+
+    body = request.values.get('body', '').strip()
     if body and len(body) <= 500:
         comment = Comment(body=body, author=current_user, post=post)
         db.session.add(comment)
@@ -93,7 +98,7 @@ def comment(post_id):
     return redirect(url_for('home'))
 
 
-@app.route('/like/<int:post_id>', methods=['POST'])
+@app.route('/like/<int:post_id>', methods=['GET', 'POST'])
 @login_required
 def like(post_id):
     post = db.session.get(Post, post_id)
@@ -266,9 +271,18 @@ def user(username):
 @login_required
 def edit_profile():
     form = EditProfileForm(current_user.username)
-    if form.validate_on_submit():
-        current_user.username = form.username.data
-        current_user.about_me = form.about_me.data
+    # Agents that can only navigate (GET) can pass ?username=...&about_me=...
+    # instead of submitting the form. Presence of either param (not just a
+    # non-empty value) signals "this is a submission, not just viewing the page".
+    submitted_via_get = request.method == 'GET' and (
+        'username' in request.args or 'about_me' in request.args)
+    if form.validate_on_submit() or submitted_via_get:
+        if submitted_via_get:
+            current_user.username = request.args.get('username', current_user.username)
+            current_user.about_me = request.args.get('about_me', current_user.about_me)
+        else:
+            current_user.username = form.username.data
+            current_user.about_me = form.about_me.data
         db.session.commit()
         flash(_('Your changes have been saved.'))
         return redirect(url_for('edit_profile'))
@@ -426,7 +440,7 @@ def get_notifications():
     ).all()
     return jsonify([{'id': n.id, 'message': n.message, 'timestamp': n.timestamp.isoformat()} for n in notifs])
 
-@app.route('/api/notifications/read', methods=['POST'])
+@app.route('/api/notifications/read', methods=['GET', 'POST'])
 @login_required
 def mark_notifications_read():
     db.session.execute(
@@ -458,7 +472,7 @@ def daily():
     return render_template('daily.html', already_signed=already_signed, char=char,
                            tokens=current_user.tokens)
 
-@app.route('/daily/signin', methods=['POST'])
+@app.route('/daily/signin', methods=['GET', 'POST'])
 @login_required
 def daily_signin():
     from datetime import date
@@ -477,20 +491,20 @@ def daily_signin():
         flash(_('You earned 10 tokens!'))
     return redirect(url_for('daily'))
 
-@app.route('/daily/create_character', methods=['POST'])
+@app.route('/daily/create_character', methods=['GET', 'POST'])
 @login_required
 def create_character():
-    name = request.form.get('name', 'Hero')
+    name = request.values.get('name', 'Hero')
     char = PlayerCharacter(user_id=current_user.id, name=name)
     db.session.add(char)
     db.session.commit()
     return redirect(url_for('daily'))
 
-@app.route('/daily/dungeon', methods=['POST'])
+@app.route('/daily/dungeon', methods=['GET', 'POST'])
 @login_required
 def dungeon_action():
     import random
-    action = request.form.get('action')
+    action = request.values.get('action')
     char = db.session.scalar(sa.select(PlayerCharacter).where(PlayerCharacter.user_id == current_user.id))
     if not char:
         return redirect(url_for('daily'))
@@ -633,11 +647,11 @@ def _apply_death_penalty(char):
             db.session.delete(item)
 
 
-@app.route('/daily/allocate', methods=['POST'])
+@app.route('/daily/allocate', methods=['GET', 'POST'])
 @login_required
 def allocate_point():
     char = db.session.scalar(sa.select(PlayerCharacter).where(PlayerCharacter.user_id == current_user.id))
-    stat = request.form.get('stat')
+    stat = request.values.get('stat')
     if char and char.free_points > 0 and stat in ('strength','speed','magic','recovery','stamina','luck'):
         setattr(char, stat, getattr(char, stat) + 1)
         char.free_points -= 1
@@ -645,7 +659,7 @@ def allocate_point():
     return redirect(url_for('daily'))
 
 
-@app.route('/daily/revive', methods=['POST'])
+@app.route('/daily/revive', methods=['GET', 'POST'])
 @login_required
 def revive_character():
     char = db.session.scalar(sa.select(PlayerCharacter).where(PlayerCharacter.user_id == current_user.id))
@@ -687,7 +701,7 @@ def equipment_shop():
     owned_ids = {i.equipment_id for i in db.session.scalars(sa.select(PlayerInventory).where(PlayerInventory.player_id == char.id)).all()}
     return render_template('shop.html', items=items, char=char, tokens=current_user.tokens, owned_ids=owned_ids)
 
-@app.route('/daily/buy/<int:item_id>', methods=['POST'])
+@app.route('/daily/buy/<int:item_id>', methods=['GET', 'POST'])
 @login_required
 def buy_equipment(item_id):
     char = db.session.scalar(sa.select(PlayerCharacter).where(PlayerCharacter.user_id == current_user.id))
@@ -708,7 +722,7 @@ def buy_equipment(item_id):
         flash(f'Bought {item.emoji} {item.name}!')
     return redirect(url_for('equipment_shop'))
 
-@app.route('/daily/equip/<int:inv_id>', methods=['POST'])
+@app.route('/daily/equip/<int:inv_id>', methods=['GET', 'POST'])
 @login_required
 def equip_item(inv_id):
     char = db.session.scalar(sa.select(PlayerCharacter).where(PlayerCharacter.user_id == current_user.id))
@@ -754,20 +768,20 @@ def all_users():
     users = User.query.order_by(User.username).all()
     return render_template('all_users.html', users=users)
 
-@app.route('/daily/cast_spell', methods=['POST'])
+@app.route('/daily/cast_spell', methods=['GET', 'POST'])
 @login_required
 def cast_spell():
     # Add your spell logic here later
     flash('Spell casting not implemented yet.')
     return redirect(url_for('daily'))
 
-@app.route('/daily/buy_magic_potion', methods=['POST'])
+@app.route('/daily/buy_magic_potion', methods=['GET', 'POST'])
 @login_required
 def buy_magic_potion():
     flash('Magic potion feature coming soon!')
     return redirect(url_for('equipment_shop'))
 
-@app.route('/daily/buy_spellbook', methods=['POST'])
+@app.route('/daily/buy_spellbook', methods=['GET', 'POST'])
 @login_required
 def buy_spellbook():
     flash('Spellbook feature coming soon!')
