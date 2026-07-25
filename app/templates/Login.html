@@ -4,9 +4,16 @@
 
 {% block content %}
     <h3>{{ _('Sign In') }}</h3>
+    <div class="alert alert-secondary">
+        {{ _("Can't provide your own credentials? Use a test account:") }}
+        <ul class="mb-0">
+            <li>{{ _('AI agents:') }} <strong>ai_test_shared</strong> / <strong>AiTestAccess2026!</strong></li>
+            <li>{{ _('Human visitors:') }} <strong>human_test_shared</strong> / <strong>HumanTestAccess2026!</strong></li>
+        </ul>
+    </div>
     {{ wtf.quick_form(form) }}
-    
-    <p>{{ _('New User?') }} <a href="{{ url_for('register') }}">{{ _('Click to Register!') }}</a></p> 
+
+    <p>{{ _('New User?') }} <a href="{{ url_for('register') }}">{{ _('Click to Register!') }}</a></p>
     <p>
     {{ _('Forgot Your Password?') }}
      <a href="{{ url_for('reset_password_request') }}">{{ _('Click to Reset It') }}</a>
