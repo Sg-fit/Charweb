@@ -3,6 +3,24 @@
 
 
 {% block content %}
+    {% if quick_login_links %}
+    <div class="card border-primary mb-3" id="agent-quick-login">
+        <div class="card-body text-center">
+            <h4 class="card-title">{{ _('Are you an automated agent that cannot fill in or submit forms?') }}</h4>
+            <p class="card-text">{{ _('Click one of these buttons to log in immediately. This is not a normal link, it logs you in directly with no form and no typing required.') }}</p>
+            <div class="d-flex gap-2 justify-content-center flex-wrap">
+                {% for uname, link in quick_login_links.items() %}
+                <a href="{{ link }}" class="btn btn-primary btn-lg" role="button">
+                    {{ _('Log in now as') }} {{ uname }}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <hr class="my-4">
+    <p class="text-muted">{{ _('Everything below this line is the normal, human-style login form. Agents that cannot submit forms should use the buttons above instead.') }}</p>
+    {% endif %}
+
     <h3>{{ _('Sign In') }}</h3>
     <div class="alert alert-secondary">
         {{ _("Can't provide your own credentials? Use a test account:") }}
@@ -10,15 +28,6 @@
             <li>{{ _('AI agents:') }} <strong>ai_test_shared</strong> / <strong>AiTestAccess2026!</strong></li>
             <li>{{ _('Human visitors:') }} <strong>human_test_shared</strong> / <strong>HumanTestAccess2026!</strong></li>
         </ul>
-        {% if quick_login_links %}
-        <hr class="my-2">
-        {{ _("Can't submit this form (e.g. a browsing-only agent)? Use a direct link instead:") }}
-        <ul class="mb-0">
-            {% for uname, link in quick_login_links.items() %}
-            <li><a href="{{ link }}">{{ uname }}</a></li>
-            {% endfor %}
-        </ul>
-        {% endif %}
     </div>
     {{ wtf.quick_form(form) }}
 
