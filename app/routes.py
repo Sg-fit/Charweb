@@ -582,6 +582,13 @@ def dungeon_action():
         else:
             result = ["🏆 Maximum depth reached!"]
 
+    elif action == 'ascend':
+        if char.floor > 1:
+            char.floor -= 1
+            result = [f"⬆️ Floor {char.floor}! Recommended level: {(char.floor-1)*10+1}-{char.floor*10}"]
+        else:
+            result = ["🏠 Already at the topmost floor!"]
+
     db.session.commit()
     if char.is_dead:
         return redirect(url_for('daily'))
