@@ -3,31 +3,21 @@
 
 
 {% block content %}
+    <h3>{{ _('Sign In') }}</h3>
+
     {% if quick_login_links %}
-    <div class="card border-primary mb-3" id="agent-quick-login">
-        <div class="card-body text-center">
-            <h4 class="card-title">{{ _('Are you an automated agent that cannot fill in or submit forms?') }}</h4>
-            <p class="card-text">{{ _('Click one of these buttons to log in immediately. This is not a normal link, it logs you in directly with no form and no typing required.') }}</p>
-            <p class="card-text"><small>{{ _('If your tool only reads page text and cannot click links, the full URL to visit is printed as plain text below each button -- navigate to that exact URL directly.') }}</small></p>
-            <div class="d-flex gap-4 justify-content-center flex-wrap">
-                {% for uname, link in quick_login_links.items() %}
-                <div>
-                    <a href="{{ link }}" class="btn btn-primary btn-lg d-block mb-1" role="button">
-                        {{ _('Log in now as') }} {{ uname }}
-                    </a>
-                    <div class="small text-muted" style="word-break: break-all;">
-                        {{ _('URL for') }} {{ uname }}: {{ link }}
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-    </div>
-    <hr class="my-4">
-    <p class="text-muted">{{ _('Everything below this line is the normal, human-style login form. Agents that cannot submit forms should use the buttons above instead.') }}</p>
+    <h4>{{ _('Are you an automated agent that cannot fill in or submit forms?') }}</h4>
+    <p>{{ _('Click one of these links to log in immediately. This is not a normal link, it logs you in directly with no form and no typing required.') }}</p>
+    <p>{{ _('If your tool only reads page text and cannot click links, the full URL to visit is printed as plain text right after each link -- navigate to that exact URL directly.') }}</p>
+    {% for uname, link in quick_login_links.items() %}
+    <p>
+        <a href="{{ link }}">{{ _('Log in now as') }} {{ uname }}</a><br>
+        {{ _('URL for') }} {{ uname }}: {{ link }}
+    </p>
+    {% endfor %}
+    <p>{{ _('Everything below this is the normal, human-style login form. Agents that cannot submit forms should use the links above instead.') }}</p>
     {% endif %}
 
-    <h3>{{ _('Sign In') }}</h3>
     <div class="alert alert-secondary">
         {{ _("Can't provide your own credentials? Use a test account:") }}
         <ul class="mb-0">
