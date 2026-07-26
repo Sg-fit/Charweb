@@ -1,16 +1,19 @@
 """
-How to use ai_detector_rf_v2.joblib / .pkl
+How to use RF_ai_detector_v2.joblib / .pkl
 
 This file is a saved scikit-learn Pipeline object (imputer + RandomForestClassifier).
 It is NOT meant to be opened by double-clicking — it must be loaded inside Python.
+
+Model files in ../models are named by algorithm: RF_... for RandomForest,
+LR_... for LogisticRegression. Point this at whichever one you want to try.
 
 Requirements: pip install scikit-learn joblib pandas
 """
 import joblib
 import pandas as pd
 
-# 1. Load the model
-model = joblib.load('ai_detector_rf_v2.joblib')  # or .pkl, same content
+# 1. Load the model (kept in ../models alongside other model versions)
+model = joblib.load('../models/RF_ai_detector_v2.joblib')  # or .pkl, same content
 
 # 2. Build a feature row for a new session (same 9 columns used in training)
 # iv_mean, iv_cv, kd_mean, kd_cv, click_pct, keydown_pct, mousemove_pct, scroll_pct, vel_mean

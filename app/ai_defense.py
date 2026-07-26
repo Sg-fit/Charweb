@@ -2,7 +2,7 @@
 
 Two independent layers, both feeding into UserSession:
   1. classify_user_agent  - cheap rule-based check against known bot/automation UAs.
-  2. score_session        - runs the trained RandomForest (Defense System/ai_detector_rf_v2.joblib)
+  2. score_session        - runs the trained RandomForest (models/RF_ai_detector_v2.joblib)
                              over the behavioral features of a session's TrackedAction rows.
 """
 import json
@@ -14,9 +14,11 @@ import sqlalchemy as sa
 from app import app, db
 from app.models import TrackedAction
 
+# Model files are named by algorithm: RF_... for RandomForest, LR_... for
+# LogisticRegression. Swap this path to switch which trained model is used.
 MODEL_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    'Defense System', 'ai_detector_rf_v2.joblib')
+    'models', 'RF_ai_detector_v2.joblib')
 
 # Substrings seen in User-Agent strings from headless browsers, scripting
 # libraries, and crawlers. Matched case-insensitively.

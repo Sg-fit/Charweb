@@ -195,6 +195,12 @@ class TrackedAction(db.Model):
     session_uid: so.Mapped[Optional[str]] = so.mapped_column(sa.String(64), index=True, nullable=True)
     action_type: so.Mapped[str] = so.mapped_column(sa.String(20))
     target: so.Mapped[Optional[str]] = so.mapped_column(sa.String(120))
+    # Page the event happened on, captured client-side at event time. Unlike
+    # `target` this is present on every event including bare mousemove, which
+    # makes it the more reliable task-type anchor for research/task_labeling.py.
+    # Nullable because every row collected before this column existed has none.
+    url: so.Mapped[Optional[str]] = so.mapped_column(
+        sa.String(512), index=True, nullable=True)
     timestamp: so.Mapped[datetime] = so.mapped_column(
         index=True, default=lambda: datetime.now(timezone.utc))
     details: so.Mapped[Optional[str]] = so.mapped_column(sa.Text)

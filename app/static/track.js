@@ -7,9 +7,21 @@ function loadTrackingData() {
     return stored ? JSON.parse(stored) : [];
 }
 
-// Save actions to localStorage
+// Save actions to localStorage.
+//
+// The page URL is stamped here rather than in each individual listener so
+// every event type gets it -- including mousemove, which carries no target
+// at all and is therefore the single largest source of unlabelable events
+// downstream. Stamping at *capture* time (not send time) matters: actions
+// are buffered in localStorage and flushed up to 5s later, or on pagehide,
+// so a batch can be transmitted from a page the user has already navigated
+// away from. Deriving the URL server-side from the Referer header would
+// misattribute exactly those events.
 function saveToLocalStorage(action) {
     let userActions = loadTrackingData();
+    if (action.url === undefined) {
+        action.url = window.location.href;
+    }
     userActions.push(action);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(userActions));
 }

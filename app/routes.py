@@ -330,8 +330,15 @@ def track():
     for item in actions:
         action_type = item.get('type', 'unknown')
         target = item.get('target')
+        # `url` is stored in its own column, so keep it out of the details
+        # blob rather than duplicating it on every single row.
+        url = item.get('url')
+        if isinstance(url, str):
+            url = url[:512]
+        else:
+            url = None
         details = {k: v for k, v in item.items()
-                    if k not in ('type', 'target', 'timestamp')}
+                    if k not in ('type', 'target', 'timestamp', 'url')}
         client_ts = item.get('timestamp')
         if client_ts:
             try:
@@ -345,6 +352,7 @@ def track():
             session_uid=session_uid,
             action_type=action_type,
             target=target,
+            url=url,
             timestamp=parsed_ts,
             details=json.dumps(details)
         )
