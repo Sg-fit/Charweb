@@ -26,6 +26,26 @@ function saveToLocalStorage(action) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(userActions));
 }
 
+// Emit one synthetic "pageload" event per page as the zero point for
+// time-to-first-action (first real interaction minus this timestamp). Without
+// it there is no page-boundary marker, so decision latency -- a core feature
+// and a human/agent discriminator -- cannot be computed site-side. `url` is
+// stamped by saveToLocalStorage, matching every other event.
+(function emitPageLoad() {
+    function fire() {
+        saveToLocalStorage({
+            type: "pageload",
+            timestamp: new Date().toISOString(),
+            target: "document"
+        });
+    }
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", fire, { once: true });
+    } else {
+        fire();  // script loaded after DOMContentLoaded already fired
+    }
+})();
+
 // Track clicks
 document.addEventListener("click", function(event) {
     const action = {

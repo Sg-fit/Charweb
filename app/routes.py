@@ -310,6 +310,17 @@ def track():
     accept_lang = request.headers.get('Accept-Language', '')
     is_bot_ua, ua_bot_reason = ai_defense.classify_user_agent(ua_string)
 
+    # Client address/port, for joining passively-captured TLS handshakes to
+    # sessions. nginx SETS (never appends) these headers, so a client cannot
+    # forge them; direct-to-Flask runs fall back to the socket peer.
+    remote_addr = request.headers.get('X-Forwarded-For') or request.remote_addr
+    if remote_addr:
+        remote_addr = remote_addr.split(',')[0].strip()[:45]
+    try:
+        remote_port = int(request.headers.get('X-Client-Port', '') or 0) or None
+    except ValueError:
+        remote_port = None
+
     now = datetime.now(timezone.utc)
     user_session = db.session.scalar(
         sa.select(UserSession).where(UserSession.session_uid == session_uid))
@@ -321,13 +332,39 @@ def track():
     user_session.accept_language = accept_lang
     user_session.ua_bot_flag = is_bot_ua
     user_session.ua_bot_reason = ua_bot_reason
+    user_session.remote_addr = remote_addr
+    user_session.remote_port = remote_port
     user_session.last_seen = now
+
+    # AI-only study: attribution labels set by the collection driver. The agent
+    # harness attaches these as extra HTTP headers on the browser context, so
+    # they ride along on the /api/track XHR. Only overwrite when a header is
+    # actually present, so an ordinary browser (no headers) never clobbers a
+    # label already recorded for the session. adversarial_condition falls back
+    # to its 'clean' column default when the header is absent.
+    for hdr, attr in (('X-Run-Id', 'run_id'),
+                      ('X-Harness', 'harness'),
+                      ('X-Model', 'model'),
+                      ('X-Instruction', 'instruction_condition'),
+                      ('X-Adv-Condition', 'adversarial_condition'),
+                      ('X-Mimicry-Target', 'mimicry_target')):
+        val = request.headers.get(hdr)
+        if val:
+            setattr(user_session, attr, val[:64])
+
+    # Server-authoritative per-session sequence: start after however many events
+    # this session already has, so seq is monotonic across batches. Combined with
+    # server_ts (this batch's receipt time) it gives an ordering the client
+    # cannot forge -- the trust anchor for the Phase-2 tamper comparison.
+    start_seq = db.session.scalar(
+        sa.select(sa.func.count()).select_from(TrackedAction)
+        .where(TrackedAction.session_uid == session_uid)) or 0
 
     if current_user.is_authenticated:
         current_user.last_user_agent = ua_string
         current_user.last_accept_language = accept_lang
 
-    for item in actions:
+    for i, item in enumerate(actions):
         action_type = item.get('type', 'unknown')
         target = item.get('target')
         # `url` is stored in its own column, so keep it out of the details
@@ -354,7 +391,9 @@ def track():
             target=target,
             url=url,
             timestamp=parsed_ts,
-            details=json.dumps(details)
+            details=json.dumps(details),
+            server_ts=now,
+            seq=start_seq + i
         )
         db.session.add(record)
     db.session.commit()
@@ -422,12 +461,23 @@ def admin_tracking_export():
             .where(User.username.ilike(f'%{user_filter}%'))
     all_actions = db.session.scalars(query).all()
 
-    lines = ["timestamp,username,action_type,target,details"]
+    # session_uid and url: added so research/build_features.py's --csv mode
+    # can group events into sessions and compute features from this export
+    # alone, without a live DB connection. Before this, the export had no
+    # way to tell which events belonged to the same session at all.
+    lines = ["timestamp,username,session_uid,action_type,target,url,details"]
     for a in all_actions:
-        username = a.user.username if a.user else "anonymous"
+        # Empty, not the string "anonymous" -- research/build_features.py
+        # treats a blank username as anonymous (arch=unknown_anonymous); a
+        # literal "anonymous" string would instead parse as a human subject
+        # named "anonymous", silently merging every anonymous visitor into
+        # one fake CV group.
+        username = a.user.username if a.user else ""
+        session_uid = a.session_uid or ""
+        url = (a.url or "").replace('"', '""')
         details = (a.details or "").replace('"', '""')
         target = (a.target or "").replace('"', '""')
-        lines.append(f'"{a.timestamp}","{username}","{a.action_type}","{target}","{details}"')
+        lines.append(f'"{a.timestamp}","{username}","{session_uid}","{a.action_type}","{target}","{url}","{details}"')
     csv_content = "\n".join(lines) + "\n"
 
     filename = f"tracking_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"

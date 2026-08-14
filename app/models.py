@@ -204,6 +204,14 @@ class TrackedAction(db.Model):
     timestamp: so.Mapped[datetime] = so.mapped_column(
         index=True, default=lambda: datetime.now(timezone.utc))
     details: so.Mapped[Optional[str]] = so.mapped_column(sa.Text)
+    # Server-assigned receipt time of the batch this event arrived in, and a
+    # monotonic per-session sequence number. `timestamp` above is the CLIENT
+    # clock (from track.js, forgeable); these two are set server-side in
+    # /api/track and are the trust anchor for the client-trust vs server-trust
+    # comparison (Phase 2, E3). Nullable: rows from before this column existed.
+    server_ts: so.Mapped[Optional[datetime]] = so.mapped_column(
+        index=True, nullable=True)
+    seq: so.Mapped[Optional[int]] = so.mapped_column(nullable=True)
 
     user: so.Mapped[Optional[User]] = so.relationship()
 
@@ -220,6 +228,16 @@ class UserSession(db.Model):
         sa.ForeignKey(User.id), index=True, nullable=True)
     user_agent: so.Mapped[Optional[str]] = so.mapped_column(sa.String(255), nullable=True)
     accept_language: so.Mapped[Optional[str]] = so.mapped_column(sa.String(120), nullable=True)
+    # Client address and source port of the most recent /api/track request.
+    # Together these identify one TCP connection, which is what a passive
+    # packet capture also keys on -- so research/join_tls_sessions.py can map
+    # a captured TLS ClientHello to this session exactly, instead of guessing
+    # from IP and timestamp. Behind nginx these come from headers the proxy
+    # sets (see deploy/charweb.nginx), not from request.remote_addr, which
+    # would just be 127.0.0.1.
+    remote_addr: so.Mapped[Optional[str]] = so.mapped_column(
+        sa.String(45), index=True, nullable=True)   # 45 = max INET6_ADDRSTRLEN
+    remote_port: so.Mapped[Optional[int]] = so.mapped_column(nullable=True)
     ua_bot_flag: so.Mapped[bool] = so.mapped_column(default=False)
     ua_bot_reason: so.Mapped[Optional[str]] = so.mapped_column(sa.String(120), nullable=True)
     ai_probability: so.Mapped[Optional[float]] = so.mapped_column(nullable=True)
@@ -227,6 +245,21 @@ class UserSession(db.Model):
     first_seen: so.Mapped[datetime] = so.mapped_column(default=lambda: datetime.now(timezone.utc))
     last_seen: so.Mapped[datetime] = so.mapped_column(default=lambda: datetime.now(timezone.utc))
     last_scored_at: so.Mapped[Optional[datetime]] = so.mapped_column(nullable=True)
+
+    # --- AI-only study: attribution labels (ground truth for M2/M4) ---
+    # Set per session by the collection driver via X-Run-* headers on /api/track
+    # (see routes.track). These are what the analysis groups on: leave-one-out
+    # CV keyed by `harness` vs by `model`, variance decomposition by factor.
+    run_id: so.Mapped[Optional[str]] = so.mapped_column(sa.String(64), index=True, nullable=True)
+    harness: so.Mapped[Optional[str]] = so.mapped_column(sa.String(32), index=True, nullable=True)
+    model: so.Mapped[Optional[str]] = so.mapped_column(sa.String(64), index=True, nullable=True)
+    instruction_condition: so.Mapped[Optional[str]] = so.mapped_column(sa.String(32), nullable=True)
+    # Phase-2 headroom: every Phase-1 session is 'clean' (the control group);
+    # attack runs write E1..E5 here. mimicry_target names the stack an E4 run is
+    # imitating. Columns exist now so no migration is needed once attacks start.
+    adversarial_condition: so.Mapped[str] = so.mapped_column(
+        sa.String(32), index=True, default='clean', server_default='clean')
+    mimicry_target: so.Mapped[Optional[str]] = so.mapped_column(sa.String(64), nullable=True)
 
     user: so.Mapped[Optional[User]] = so.relationship()
 
