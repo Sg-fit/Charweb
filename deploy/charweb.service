@@ -1,0 +1,32 @@
+[Unit]
+Description=Charweb research testbed (Flask + SocketIO)
+After=network.target
+
+[Service]
+Type=simple
+User=charweb
+Group=charweb
+WorkingDirectory=/srv/charweb
+EnvironmentFile=/etc/charweb.env
+
+# ONE worker, eventlet class. Flask-SocketIO keeps connection state in
+# process memory, so multiple workers break chat unless a Redis message
+# queue is added. A single worker is also better here for research reasons:
+# it keeps server-side response time consistent, and response time feeds
+# into the page-load timings Phase III measures.
+ExecStart=/srv/charweb/venv/bin/gunicorn \
+    --worker-class eventlet \
+    --workers 1 \
+    --bind 127.0.0.1:8000 \
+    --access-logfile /var/log/charweb/access.log \
+    --error-logfile /var/log/charweb/error.log \
+    --capture-output \
+    app.wsgi:app
+
+Restart=always
+RestartSec=5
+# Do NOT add memory/CPU limits here without recording it: throttling changes
+# response time, which is a measured variable during collection.
+
+[Install]
+WantedBy=multi-user.target

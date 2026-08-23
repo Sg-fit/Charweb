@@ -1,0 +1,24 @@
+[Unit]
+Description=Charweb passive TLS handshake capture (JA3 data collection)
+After=network.target
+
+[Service]
+# capture_tls.sh's own "start" forks tcpdump into the background and exits
+# -- that's the Type=forking contract, matched to the PID file it writes.
+Type=forking
+PIDFile=/run/charweb-tlscap.pid
+ExecStart=/usr/local/bin/charweb-tlscap start
+ExecStop=/usr/local/bin/charweb-tlscap stop
+
+# Auto-recover if tcpdump dies mid-window (OOM, disk full, etc). This is the
+# one thing the bare script can't do on its own -- a crashed unattended
+# capture silently loses irreplaceable hours of a collection window.
+Restart=on-failure
+RestartSec=10
+
+Environment=OUTDIR=/var/lib/charweb/captures
+Environment=ROTATE=3600
+Environment=KEEP=168
+
+[Install]
+WantedBy=multi-user.target

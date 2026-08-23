@@ -72,15 +72,18 @@ def _mean_cv(deltas):
     return mean, statistics.pstdev(deltas) / mean
 
 
-def compute_session_features(session_uid):
+def features_from_rows(rows):
     """Build the 9-column feature row the model was trained on
     (iv_mean, iv_cv, kd_mean, kd_cv, click_pct, keydown_pct, mousemove_pct,
-    scroll_pct, vel_mean) from a session's raw TrackedAction rows."""
-    rows = db.session.scalars(
-        sa.select(TrackedAction)
-        .where(TrackedAction.session_uid == session_uid)
-        .order_by(TrackedAction.timestamp.asc())
-    ).all()
+    scroll_pct, vel_mean) from an ordered list of row-like objects, each
+    exposing .timestamp (datetime), .action_type (str), .details (JSON
+    string or None) -- i.e. TrackedAction rows, or anything shaped like one.
+
+    Split out from compute_session_features() so research/build_features.py
+    can compute this exact feature set offline (from a CSV export, without a
+    live DB) without copy-pasting the logic -- see that script's own
+    docstring on why train/serve drift is the bug class to avoid here.
+    """
     if len(rows) < 5:
         return None
 
@@ -120,6 +123,16 @@ def compute_session_features(session_uid):
         'scroll_pct': _pct(sum(1 for r in rows if r.action_type == 'scroll'), total),
         'vel_mean': statistics.fmean(velocities) if velocities else 0.0,
     }
+
+
+def compute_session_features(session_uid):
+    """features_from_rows(), fed from this session's live TrackedAction rows."""
+    rows = db.session.scalars(
+        sa.select(TrackedAction)
+        .where(TrackedAction.session_uid == session_uid)
+        .order_by(TrackedAction.timestamp.asc())
+    ).all()
+    return features_from_rows(rows)
 
 
 def score_session(session_uid):

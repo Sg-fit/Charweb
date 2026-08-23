@@ -1,0 +1,10 @@
+# Extra dependencies for the TLS-fingerprinting toolkit
+# (capture_tls.sh, extract_ja3.py, join_tls_sessions.py).
+#
+# Not part of app/requirements.txt on purpose: the deployed Flask app never
+# imports these, so keeping them separate keeps local app dev installs light.
+# pandas is already in app/requirements.txt (task_labeling.py etc. need it
+# too) but is listed here as well so this file alone is enough to run the
+# TLS scripts against an already-exported CSV, without the full app install.
+dpkt==1.9.8
+pandas==3.0.3

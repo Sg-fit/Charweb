@@ -29,7 +29,21 @@ moment = Moment(app)
 babel = Babel(app, locale_selector=get_locale)
 
 # Initialize SocketIO AFTER app is created
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', 
+#
+# async_mode is left unset (auto-detect) ON PURPOSE, not hardcoded to either
+# eventlet or gevent -- the two dev environments this app actually runs in
+# disagree about which one is installed: production installs ONLY eventlet
+# (see deploy/charweb.service's `-k eventlet` gunicorn worker and DEPLOY.md's
+# `pip install ... eventlet`, deliberately not gevent, so a single worker can
+# hold every SocketIO connection without a Redis queue and server response
+# time -- a measured variable during data collection -- stays consistent),
+# while local dev venvs have installed gevent instead. Hardcoding either
+# value breaks the other environment at import time with "ValueError:
+# Invalid async_mode specified" before the app ever starts. Auto-detect
+# works because each environment only ever has ONE of the two installed --
+# if that ever stops being true (both installed at once, e.g. in the same
+# venv), this needs to go back to being explicit.
+socketio = SocketIO(app, cors_allowed_origins="*",
                     logger=False, engineio_logger=False,
                     allow_upgrades=True)
 

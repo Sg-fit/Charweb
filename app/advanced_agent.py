@@ -23,7 +23,17 @@ browser turn-by-turn), which this is not.
 Usage:
     pip install playwright
     playwright install chromium
-    python advanced_agent.py --base-url https://charweb.net --username chatgpt_run1
+    python advanced_agent.py --base-url https://charweb.net --username ai_L5_run1
+
+NOTE ON THE --username ABOVE: it must start with "ai_L5" (or another
+playwright_tier-style prefix), never a model name like "chatgpt_run1" or
+"claude_run1" -- research/label_architecture.py buckets sessions into
+(arch, family, harness) by parsing this prefix, and family=llm_scripted /
+family=llm_live are reserved for scripts under a genuine per-model identity
+(gptTest.py, gemini.py, grok.py, copilat.py) or genuine live decision-making
+(app/claude.py). Labeling this script's output under a model name would
+silently misattribute a fixed-script's behavior to that model, which is
+exactly the mistake the NOTE above exists to prevent.
 
 Requires Python 3.9+.
 """
@@ -423,8 +433,10 @@ async def run(base_url, username, headless):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="https://charweb.net")
-    parser.add_argument("--username", default="advanced_agent_run1",
-                         help="base username; a random suffix is appended at signup")
+    parser.add_argument("--username", default="ai_L5_run1",
+                         help="base username; a random suffix is appended at signup. "
+                              "MUST start with 'ai_L5' (see module docstring) -- "
+                              "research/label_architecture.py keys off this prefix.")
     parser.add_argument("--headless", action="store_true", default=False)
     args = parser.parse_args()
 

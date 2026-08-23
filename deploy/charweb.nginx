@@ -1,0 +1,61 @@
+# /etc/nginx/sites-available/charweb
+#
+# Note: this must be reached DIRECTLY, not through a Cloudflare proxy or
+# tunnel. Passive TLS fingerprinting needs the client's real handshake to
+# arrive at this box; if Cloudflare terminates TLS, the ClientHello you
+# capture is Cloudflare's, not the visitor's. Set the DNS record to
+# "DNS only" (grey cloud).
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name charweb.net www.charweb.net;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name charweb.net www.charweb.net;
+
+    # certbot --nginx fills these in
+    ssl_certificate     /etc/letsencrypt/live/charweb.net/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/charweb.net/privkey.pem;
+
+    client_max_body_size 8m;
+    access_log /var/log/nginx/charweb.access.log;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+
+        # SET, never append. If this used $proxy_add_x_forwarded_for a client
+        # could prepend a forged address and poison the session->capture join.
+        proxy_set_header X-Forwarded-For   $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # The client's source port. Combined with the address this names one
+        # TCP connection, which is the exact key research/join_tls_sessions.py
+        # uses to tie a captured ClientHello to a Charweb session.
+        proxy_set_header X-Client-Port     $remote_port;
+    }
+
+    # Flask-SocketIO needs the connection upgraded for websockets.
+    location /socket.io/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host       $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Client-Port   $remote_port;
+        proxy_read_timeout 3600s;
+    }
+
+    location /static/ {
+        alias /srv/charweb/app/static/;
+        expires 1h;
+    }
+}
