@@ -4,6 +4,11 @@ import time
 import uuid
 from playwright.sync_api import sync_playwright
 
+try:
+    from run_labels import build_run_headers
+except ImportError:
+    from app.run_labels import build_run_headers
+
 BASE_URL = "https://charweb.net"
 PASSWORD = "TestPassword123!"
 TRIALS_PER_LEVEL = 3
@@ -60,6 +65,7 @@ def main():
 
                 browser = p.chromium.launch(headless=HEADLESS)
                 page = browser.new_page()
+                page.set_extra_http_headers(build_run_headers())
 
                 # 1. Register
                 def do_register():

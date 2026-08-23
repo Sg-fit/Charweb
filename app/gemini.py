@@ -3,6 +3,11 @@ import asyncio
 import random
 from playwright.async_api import async_playwright
 
+try:
+    from run_labels import build_run_headers
+except ImportError:
+    from app.run_labels import build_run_headers
+
 
 async def human_delay(min_sec: float = 0.8, max_sec: float = 2.5):
     """Simulates realistic human pause delays between interactions."""
@@ -44,6 +49,7 @@ async def main():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=args.headless)
         context = await browser.new_context()
+        await context.set_extra_http_headers(build_run_headers())
         page = await context.new_page()
 
         base_url = args.url.rstrip('/')

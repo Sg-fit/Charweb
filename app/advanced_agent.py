@@ -46,6 +46,11 @@ import string
 
 from playwright.async_api import async_playwright, Page
 
+try:
+    from run_labels import build_run_headers
+except ImportError:
+    from app.run_labels import build_run_headers
+
 
 # ---------------------------------------------------------------------------
 # Timing model
@@ -414,6 +419,7 @@ async def run(base_url, username, headless):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=headless)
         context = await browser.new_context(viewport={"width": 1280, "height": 800})
+        await context.set_extra_http_headers(build_run_headers())
         page = await context.new_page()
         state = AgentState(page, base_url, username)
 

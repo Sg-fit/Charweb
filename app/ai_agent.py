@@ -4,6 +4,11 @@ import random
 import csv
 from datetime import datetime
 
+try:
+    from run_labels import build_run_headers
+except ImportError:
+    from app.run_labels import build_run_headers
+
 BASE_URL = "https://charweb.net"
 PASSWORD = "TestPass123!"
 TRIALS_PER_LEVEL = 3
@@ -53,6 +58,7 @@ def run_full_mission(level, trial):
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
+        page.set_extra_http_headers(build_run_headers())
 
         try:
             # Register

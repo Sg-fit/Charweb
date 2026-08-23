@@ -6,6 +6,11 @@ import time
 
 from playwright.sync_api import sync_playwright, TimeoutError
 
+try:
+    from run_labels import build_run_headers
+except ImportError:
+    from app.run_labels import build_run_headers
+
 BASE_URL = "https://charweb.net"
 
 
@@ -726,6 +731,8 @@ def main():
             viewport=random_viewport()
 
         )
+
+        context.set_extra_http_headers(build_run_headers())
 
         page = context.new_page()
 
