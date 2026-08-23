@@ -1,0 +1,44 @@
+2026-06-29 01:47:24,559 ERROR: Exception on /register [POST] [in /home/vagrant/venv/lib/python3.10/site-packages/flask/app.py:875]
+Traceback (most recent call last):
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "/home/vagrant/charweb3/app/routes.py", line 99, in register
+    if form.accept_terms.data:
+AttributeError: 'RegistrationForm' object has no attribute 'accept_terms'
+2026-06-29 03:06:35,489 ERROR: Exception on /register [POST] [in /home/vagrant/venv/lib/python3.10/site-packages/flask/app.py:875]
+Traceback (most recent call last):
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/home/vagrant/venv/lib/python3.10/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "/home/vagrant/charweb3/app/routes.py", line 99, in register
+    if form.accept_terms.data:
+AttributeError: 'RegistrationForm' object has no attribute 'accept_terms'
+2026-06-29 03:14:16,624 INFO: Charweb startup [in /home/vagrant/charweb3/app/__init__.py:54]
+2026-06-29 03:14:17,562 INFO: Charweb startup [in /home/vagrant/charweb3/app/__init__.py:54]
+2026-06-29 03:14:20,503 INFO: Charweb startup [in /home/vagrant/charweb3/app/__init__.py:54]
+2026-06-29 03:14:19,296 INFO: Charweb startup [in /home/vagrant/charweb3/app/__init__.py:54]
+2026-06-29 15:52:13,162 INFO: Charweb startup [in /home/vagrant/charweb3/app/__init__.py:54]
+2026-06-29 15:52:13,217 INFO: Charweb startup [in /home/vagrant/charweb3/app/__init__.py:54]
+2026-06-29 15:52:13,468 INFO: Charweb startup [in /home/vagrant/charweb3/app/__init__.py:54]
+2026-06-29 15:52:13,717 INFO: Charweb startup [in /home/vagrant/charweb3/app/__init__.py:54]
+2026-07-18 11:54:55,185 INFO: Charweb startup [in C:\Users\charl\ProjectStart\app\__init__.py:66]
+2026-07-18 11:55:24,807 INFO: Charweb startup [in C:\Users\charl\ProjectStart\app\__init__.py:66]
+2026-07-18 11:56:42,169 INFO: Charweb startup [in C:\Users\charl\ProjectStart\app\__init__.py:66]
+2026-07-18 11:57:40,429 INFO: Charweb startup [in C:\Users\charl\ProjectStart\app\__init__.py:66]
+2026-07-18 11:58:08,605 INFO: Charweb startup [in C:\Users\charl\ProjectStart\app\__init__.py:66]
+2026-07-18 12:06:51,659 INFO: Charweb startup [in C:\Users\charl\ProjectStart\app\__init__.py:66]
+2026-07-18 12:07:11,848 INFO: Charweb startup [in C:\Users\charl\ProjectStart\app\__init__.py:66]
+2026-07-18 12:18:29,059 INFO: Charweb startup [in C:\Users\charl\ProjectStart\app\__init__.py:66]
+2026-07-21 08:36:33,678 INFO: Charweb startup [in C:\Users\charl\ProjectStart\app\__init__.py:66]
+2026-07-21 08:57:42,182 INFO: Charweb startup [in C:\Users\charl\ProjectStart\app\__init__.py:66]
