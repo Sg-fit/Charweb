@@ -14,9 +14,10 @@ server {
 }
 
 server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-    http2 on;
+    # http2 as a listen flag (works on nginx 1.24 shipped by Ubuntu 24.04;
+    # the standalone `http2 on;` directive needs nginx >= 1.25.1).
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
     server_name charweb.net www.charweb.net;
 
     # certbot --nginx fills these in

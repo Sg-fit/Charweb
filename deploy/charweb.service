@@ -9,19 +9,13 @@ Group=charweb
 WorkingDirectory=/srv/charweb
 EnvironmentFile=/etc/charweb.env
 
-# ONE worker, eventlet class. Flask-SocketIO keeps connection state in
-# process memory, so multiple workers break chat unless a Redis message
-# queue is added. A single worker is also better here for research reasons:
-# it keeps server-side response time consistent, and response time feeds
-# into the page-load timings Phase III measures.
-ExecStart=/srv/charweb/venv/bin/gunicorn \
-    --worker-class eventlet \
-    --workers 1 \
-    --bind 127.0.0.1:8000 \
-    --access-logfile /var/log/charweb/access.log \
-    --error-logfile /var/log/charweb/error.log \
-    --capture-output \
-    app.wsgi:app
+# Single process via Flask-SocketIO's eventlet server (see run_prod.py).
+# We do NOT use gunicorn's eventlet worker: it fails to load against
+# eventlet >= 0.38. One process also keeps server-side response time
+# consistent, which feeds the page-load timings the study measures.
+# stdout/stderr (incl. access logging) are captured by journald:
+#   journalctl -u charweb
+ExecStart=/srv/charweb/venv/bin/python /srv/charweb/run_prod.py
 
 Restart=always
 RestartSec=5
