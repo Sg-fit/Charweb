@@ -229,19 +229,31 @@ function sendTrackingData() {
     }
 }
 
-// Best-effort send for when the page is closing/hiding. sendBeacon is
-// fire-and-forget (no response to confirm success), but the browser
-// guarantees it gets dispatched even as the page tears down, which a
-// normal fetch() does not guarantee.
+// Best-effort send for when the page is closing/hiding. Use fetch(keepalive),
+// NOT sendBeacon: the collection harness attaches the X-Harness / X-Model
+// attribution headers to the browser context, and those ride along on fetch
+// requests but are STRIPPED from sendBeacon. With a beacon, a fast-navigating
+// agent whose events all flush on page-hide was recorded unlabelled (None/None).
+// keepalive still guarantees dispatch during page teardown, and (unlike a plain
+// fetch) it also carries the auth cookie + custom headers.
 function sendTrackingDataViaBeacon() {
     const userActions = loadTrackingData();
     if (userActions.length === 0) return;
-    if (navigator.sendBeacon) {
-        const blob = new Blob([JSON.stringify(userActions)], { type: "application/json" });
-        navigator.sendBeacon("/api/track", blob);
+    try {
+        fetch("/api/track", {
+            method: "POST",
+            credentials: "same-origin",
+            keepalive: true,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(userActions)
+        });
         clearTrackedData();
-    } else {
-        sendTrackingData();
+    } catch (e) {
+        if (navigator.sendBeacon) {
+            const blob = new Blob([JSON.stringify(userActions)], { type: "application/json" });
+            navigator.sendBeacon("/api/track", blob);
+            clearTrackedData();
+        }
     }
 }
 

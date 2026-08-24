@@ -327,7 +327,12 @@ def track():
     if user_session is None:
         user_session = UserSession(session_uid=session_uid, first_seen=now)
         db.session.add(user_session)
-    user_session.user_id = user_id
+    # Sticky login: once a session has authenticated, keep that user_id. Do NOT
+    # clear it back to None when a later event (e.g. the /logout page-hide flush)
+    # arrives unauthenticated -- otherwise a session that logged in mid-visit is
+    # mis-recorded as "not logged in".
+    if user_id is not None:
+        user_session.user_id = user_id
     user_session.user_agent = ua_string
     user_session.accept_language = accept_lang
     user_session.ua_bot_flag = is_bot_ua
