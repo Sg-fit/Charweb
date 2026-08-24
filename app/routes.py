@@ -347,13 +347,16 @@ def track():
     # actually present, so an ordinary browser (no headers) never clobbers a
     # label already recorded for the session. adversarial_condition falls back
     # to its 'clean' column default when the header is absent.
-    for hdr, attr in (('X-Run-Id', 'run_id'),
-                      ('X-Harness', 'harness'),
-                      ('X-Model', 'model'),
-                      ('X-Instruction', 'instruction_condition'),
-                      ('X-Adv-Condition', 'adversarial_condition'),
-                      ('X-Mimicry-Target', 'mimicry_target')):
-        val = request.headers.get(hdr)
+    for hdr, cookie, attr in (('X-Run-Id', 'cw_run_id', 'run_id'),
+                              ('X-Harness', 'cw_harness', 'harness'),
+                              ('X-Model', 'cw_model', 'model'),
+                              ('X-Instruction', 'cw_instruction', 'instruction_condition'),
+                              ('X-Adv-Condition', 'cw_adv_condition', 'adversarial_condition'),
+                              ('X-Mimicry-Target', 'cw_mimicry_target', 'mimicry_target')):
+        # Header first; fall back to the cookie the harness set on its context.
+        # sendBeacon / keepalive page-hide flushes drop custom headers but still
+        # carry cookies, so this is what labels a fast-navigating session.
+        val = request.headers.get(hdr) or request.cookies.get(cookie)
         if val:
             setattr(user_session, attr, val[:64])
 

@@ -33,3 +33,29 @@ def build_run_headers():
     return {header: os.environ[env]
             for env, header in _ENV_TO_HEADER.items()
             if os.environ.get(env)}
+
+
+# Cookie fallback for the same labels. HTTP headers set on a Playwright context
+# ride the top-level navigation and interval fetches, but are NOT attached to
+# navigator.sendBeacon and are unreliable on the page-teardown keepalive flush.
+# Cookies, by contrast, are sent by the browser on EVERY request automatically
+# (navigation, fetch, keepalive, beacon), so a fast-navigating harness whose
+# events all flush on page-hide is still labelled. The server reads the header
+# first and falls back to the cookie (see routes.track).
+_ENV_TO_COOKIE = {
+    "CHARWEB_RUN_ID": "cw_run_id",
+    "CHARWEB_HARNESS": "cw_harness",
+    "CHARWEB_MODEL": "cw_model",
+    "CHARWEB_INSTRUCTION": "cw_instruction",
+    "CHARWEB_ADV_CONDITION": "cw_adv_condition",
+    "CHARWEB_MIMICRY_TARGET": "cw_mimicry_target",
+}
+
+
+def build_run_cookies(url):
+    """Return a list of Playwright cookie dicts for whichever label env vars are
+    set, scoped to `url`'s origin. Pass to context.add_cookies(). Empty list if
+    none set."""
+    return [{"name": cookie, "value": os.environ[env], "url": url}
+            for env, cookie in _ENV_TO_COOKIE.items()
+            if os.environ.get(env)]
