@@ -29,13 +29,23 @@ warnings.filterwarnings("ignore")
 RNG = 0
 
 
+TREES = 200
+REPEATS = 5
+
+
 def rf():
-    return RandomForestClassifier(n_estimators=400, random_state=RNG,
+    # 200 trees is plenty here: the time-only model has 3 columns, and the
+    # behavioural one is already saturated well below this. Keeps the run
+    # tractable on a 2-core VPS.
+    return RandomForestClassifier(n_estimators=TREES, random_state=RNG,
                                   class_weight="balanced", n_jobs=-1)
 
 
 def load(path):
     df = pd.read_csv(path)
+    if df.empty:
+        sys.exit(f"{path} is empty -- re-export it. If you used --run-id, that "
+                 "run matched no sessions.")
     if "first_seen" not in df.columns:
         sys.exit(f"{path} has no first_seen column -- re-export with the "
                  "updated research/export_research_features.py")
@@ -50,7 +60,7 @@ def load(path):
     return df
 
 
-def cv(df, cols, target, reps=10):
+def cv(df, cols, target, reps=REPEATS):
     sub = df[df[target].notna()]
     y = sub[target].values
     counts = pd.Series(y).value_counts()

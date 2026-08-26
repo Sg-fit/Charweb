@@ -175,10 +175,16 @@ def main():
     fh.close()
     print(f"\n[interleaved] done. run_id={run_id}")
     print(f"[interleaved] manifest -> {manifest}")
-    print("\nNext: re-export and score ONLY this batch, then compare with the "
-          "blocked result:")
-    print(f"  ./venv/bin/python research/export_research_features.py -o interleaved.csv")
-    print(f"  ./venv/bin/python research/m3_analysis.py interleaved.csv")
+    print("\nNext -- export BOTH batches (the --run-id filter is what keeps this")
+    print("batch separate; without it you re-export the old blocked data):")
+    print("  set -a; . /etc/charweb.env; set +a")
+    print("  ./venv/bin/python research/export_research_features.py -o blocked.csv")
+    print("  ./venv/bin/python research/export_research_features.py "
+          f"-o interleaved.csv --run-id {run_id}")
+    print("\nThen the confound test -- this is the comparison that matters:")
+    print("  ./venv/bin/python research/m3_confound_check.py blocked.csv interleaved.csv")
+    print("\nAnd confirm the finding still holds on the new batch alone:")
+    print("  ./venv/bin/python research/m3_analysis.py interleaved.csv")
 
 
 if __name__ == "__main__":
