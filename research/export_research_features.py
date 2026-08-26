@@ -44,8 +44,10 @@ STRUCT = ["struct_n_urls", "struct_events_per_url", "struct_revisit_rate",
 GEOM = ["geom_vel_mean", "geom_vel_cv", "geom_vel_max", "geom_mousemove_n"]
 
 FEATURES = TIMING + ACTION + STRUCT + GEOM
+# first_seen is exported so the batch/temporal confound can be tested directly
+# ("does collection time predict the label?"), which needs a clock per session.
 LABELS = ["session_uid", "harness", "model", "instruction_condition", "run_id",
-          "logged_in", "adversarial_condition"]
+          "logged_in", "adversarial_condition", "first_seen"]
 
 
 def _mean_cv(xs):
@@ -149,7 +151,13 @@ def main():
     ap.add_argument("--min-events", type=int, default=5)
     ap.add_argument("--include-unlabelled", action="store_true",
                     help="also export sessions with no harness label")
+    ap.add_argument("--run-id", default=None,
+                    help="export only sessions from this run_id "
+                         "(e.g. an interleaved batch), or a comma-separated list")
     args = ap.parse_args()
+
+    wanted_runs = ({r.strip() for r in args.run_id.split(",") if r.strip()}
+                   if args.run_id else None)
 
     with app.app_context():
         sessions = db.session.scalars(sa.select(UserSession)).all()
@@ -160,6 +168,8 @@ def main():
             w.writeheader()
 
             for s in sessions:
+                if wanted_runs and (s.run_id or "none") not in wanted_runs:
+                    continue
                 if not s.harness and not args.include_unlabelled:
                     skipped_unlabelled += 1
                     continue
@@ -185,6 +195,7 @@ def main():
                     "run_id": s.run_id or "none",
                     "logged_in": int(s.user_id is not None),
                     "adversarial_condition": s.adversarial_condition or "clean",
+                    "first_seen": s.first_seen.isoformat() if s.first_seen else "",
                     **feats,
                 })
                 written += 1

@@ -1,0 +1,96 @@
+analysed sessions: 276  (llm_driven subset: 200)
+harnesses: 6   models in llm_driven: 7
+
+========================================================================
+H1  VARIANCE DECOMPOSITION  (semi-partial R^2 on 25 standardized features)
+========================================================================
+Across ALL sessions (model nested, so not entered here):
+  harness      unique R^2 = 0.396
+  instruction  unique R^2 = 0.025
+  full model         R^2 = 0.436
+
+Within llm_driven only (harness held constant -> model is identifiable):
+  model        unique R^2 = 0.341
+  instruction  unique R^2 = 0.070
+  full model         R^2 = 0.418
+
+Top 6 features by harness eta^2:
+    timing_rate                0.858
+    action_keydown_pct         0.833
+    timing_kd_cv               0.775
+    struct_n_events            0.722
+    struct_events_per_url      0.718
+    action_click_pct           0.701
+Top 6 features by model eta^2 (within llm_driven):
+    action_pageload_pct        0.595
+    struct_events_per_url      0.586
+    struct_revisit_rate        0.577
+    action_mousemove_pct       0.450
+    geom_vel_cv                0.435
+    struct_n_events            0.425
+
+========================================================================
+H2  ATTRIBUTION & GENERALIZATION
+========================================================================
+[H2-1] Harness attribution, 6-way, 5-fold CV
+       balanced acc 0.930 | macro-F1 0.958 | chance 0.167 | permutation p 0.0099
+
+       confusion (rows=true):
+           fenris  llm_drive  playwrigh  scripted_  scripted_  scripted_
+       fenris                     7          1          0          0          0          0
+       llm_driven                 0        200          0          0          0          0
+       playwright                 0          5         12          0          0          0
+       scripted_humanlike         0          0          0         16          0          0
+       scripted_noisy             0          0          0          0         16          0
+       scripted_plain             0          0          0          0          0         19
+
+[H2-2] Model attribution within llm_driven, 7-way, 5-fold CV
+       balanced acc 0.529 | macro-F1 0.530 | chance 0.143 | permutation p 0.0099
+       per-model recall:
+         google/gemma-3-12b-it                    n= 24  recall 0.292
+         meta/llama-3.1-8b-instruct               n= 39  recall 1.000
+         meta/llama-3.3-70b-instruct              n=  9  recall 0.333
+         nv-mistralai/mistral-nemo-12b-instruct   n= 31  recall 0.516
+         openai/gpt-oss-120b                      n= 17  recall 0.235
+         openai/gpt-oss-20b                       n= 70  recall 0.729
+         qwen/qwen3.6-27b                         n= 10  recall 0.600
+
+[H2-3] Cross-instruction generalization (train free_explore -> test checklist)
+       harness  3-way | train 136 test 89 | balanced acc 0.667 | macro-F1 0.642 | chance 0.333
+       model    6-way | train 116 test 75 | balanced acc 0.321 | macro-F1 0.282 | chance 0.167
+
+[H2-4] Leave-one-model-out: harness recall on an UNSEEN model
+       held out google/gemma-3-12b-it                    n= 24  recall 1.000
+       held out meta/llama-3.1-8b-instruct               n= 39  recall 0.974
+       held out meta/llama-3.3-70b-instruct              n=  9  recall 1.000
+       held out nv-mistralai/mistral-nemo-12b-instruct   n= 31  recall 1.000
+       held out openai/gpt-oss-120b                      n= 17  recall 1.000
+       held out openai/gpt-oss-20b                       n= 70  recall 1.000
+       held out qwen/qwen3.6-27b                         n= 10  recall 1.000
+       MEAN recall on unseen models: 0.996
+
+[H2-5] Matched-task scripted profiles only (3-way, n=51): balanced acc 1.000 | macro-F1 1.000 | chance 0.333 | permutation p 0.0099
+       (identical task list -> this is pure timing/mouse/typing style)
+
+========================================================================
+H3  FEATURE-GROUP ABLATION  (DOM/behavioural vs mouse geometry)
+========================================================================
+feature group                               harness bal-acc  model bal-acc
+all (25)                                              0.930          0.529
+timing (8)                                            0.930          0.475
+action (8)                                            0.910          0.513
+structure (5)                                         0.921          0.500
+geometry (4)                                          0.805          0.366
+DOM-only (timing+action+structure, 21)                0.930          0.559
+no-timing (action+structure+geom, 17)                 0.942          0.542
+
+Mean mousemove events per session, by harness:
+    scripted_humanlike          56.2
+    playwright                  36.6
+    scripted_noisy              31.3
+    llm_driven                  19.3
+    scripted_plain              13.3
+    fenris                       4.9
+
+DOM-driven harnesses emit essentially no mouse geometry, so geometry
+features cannot carry their attribution -- H3's stated blind spot.

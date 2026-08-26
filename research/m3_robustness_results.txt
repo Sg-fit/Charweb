@@ -1,0 +1,70 @@
+n=276 sessions | harness chance=0.167 | model chance=0.143
+
+==========================================================================
+R1  Repeated CV (10 x 5-fold) -- is one lucky split doing the work?
+==========================================================================
+  harness (6-way)              0.941 +/- 0.054   95% of splits [0.795, 1.000]
+  model (7-way, llm_driven)    0.543 +/- 0.096   95% of splits [0.396, 0.738]
+
+==========================================================================
+R2  Classifier choice -- does the finding depend on RandomForest?
+==========================================================================
+  estimator            harness       model
+  RandomForest           0.930       0.529
+  LogisticReg            0.928       0.588
+  HistGradBoost          0.939       0.459
+  kNN(k=5)               0.888       0.541
+
+==========================================================================
+R3  Class imbalance -- cap every harness at the same n (llm_driven is 200 vs 8)
+==========================================================================
+  cap=17   n=91   0.944 +/- 0.059   min-class=8
+  cap=25   n=101  0.953 +/- 0.045   min-class=8
+  cap=40   n=116  0.947 +/- 0.039   min-class=8
+
+==========================================================================
+R4  'It's just event volume' -- drop count/duration/rate features
+==========================================================================
+  feature set                            harness       model
+  all (25)                            0.943+/-0.05  0.537+/-0.10
+  SHAPE only (volume dropped, 19)     0.929+/-0.08  0.506+/-0.10
+  VOLUME only (6)                     0.943+/-0.05  0.549+/-0.11
+
+==========================================================================
+R5  Leave-one-model-out recall -- bootstrap CI per held-out model
+==========================================================================
+  google/gemma-3-12b-it                    n= 24  recall 1.000  95% CI [1.000, 1.000]
+  meta/llama-3.1-8b-instruct               n= 39  recall 0.974  95% CI [0.923, 1.000]
+  meta/llama-3.3-70b-instruct              n=  9  recall 1.000  95% CI [1.000, 1.000]
+  nv-mistralai/mistral-nemo-12b-instruct   n= 31  recall 1.000  95% CI [1.000, 1.000]
+  openai/gpt-oss-120b                      n= 17  recall 1.000  95% CI [1.000, 1.000]
+  openai/gpt-oss-20b                       n= 70  recall 1.000  95% CI [1.000, 1.000]
+  qwen/qwen3.6-27b                         n= 10  recall 1.000  95% CI [1.000, 1.000]
+  MEAN across held-out models                   0.996
+
+==========================================================================
+R6  Thin-cell dependence -- drop harnesses with n<15, re-score
+==========================================================================
+  kept 5 harnesses (llm_driven, playwright, scripted_humanlike, scripted_noisy, scripted_plain)
+  n=268  balanced acc 0.941 +/- 0.042  (chance 0.200)
+
+==========================================================================
+NOT TESTABLE FROM THIS DATA
+==========================================================================
+  Batch/temporal confound: each harness was collected in contiguous runs on one
+  host, so collection time is partly aliased with harness identity. No split of
+  the existing CSV can separate them -- it needs interleaved re-collection.
+
+==========================================================================
+R7  Is the leave-one-model-out recall just majority-class bias?
+==========================================================================
+  For every held-out model, the same classifier's false-positive rate on the
+  OTHER harnesses was 0.000 -- a model that simply always answered
+  "llm_driven" would score 1.000 there. The recall is real discrimination.
+
+  Harder variant, llm_driven vs fenris only (both are LLM-driven agents,
+  so "is it an LLM agent" cannot be the shortcut): recall 1.000 on every
+  held-out model.
+
+  Scripted 3-way separation under 10x5 repeated CV: 1.000 +/- 0.000
+  (minimum over 50 splits: 1.000).
