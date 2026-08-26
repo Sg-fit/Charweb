@@ -110,6 +110,7 @@ def main():
                     "finished_utc", "seconds", "returncode"])
 
     seq = 0
+    consecutive_fail = 0
     for rnd in range(args.rounds):
         order = list(arms)
         if args.shuffle:
@@ -153,6 +154,22 @@ def main():
                 print("    daily quota reached -- stopping batch")
                 fh.close()
                 return
+
+            # A collector that exits instantly and non-zero is broken (a missing
+            # dependency, a dead site), not unlucky. Without this guard the whole
+            # batch "completes" in seconds having collected nothing, which looks
+            # like a finished run until the export comes back empty.
+            if rc != 0 and dt < 10:
+                consecutive_fail += 1
+                if consecutive_fail >= 3:
+                    print(f"\n[interleaved] ABORTING: {consecutive_fail} collectors "
+                          f"in a row failed in under 10s (last exit code {rc}).")
+                    print("[interleaved] Fix the collector, then re-run. Nothing "
+                          "useful was collected, so no partial batch to clean up.")
+                    fh.close()
+                    sys.exit(1)
+            else:
+                consecutive_fail = 0
             time.sleep(args.sleep)
 
     fh.close()
