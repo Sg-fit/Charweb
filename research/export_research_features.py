@@ -203,6 +203,23 @@ def main():
     print(f"wrote {written} sessions -> {args.out}")
     print(f"skipped: {skipped_short} too-short, {skipped_unlabelled} unlabelled")
 
+    if written == 0:
+        # An empty export used to sail on silently and only blow up two scripts
+        # later with an unrelated sklearn error. Fail here, where the cause is
+        # obvious, and show what run_ids actually exist.
+        print("\nERROR: no sessions were exported.")
+        if wanted_runs:
+            print(f"  --run-id {sorted(wanted_runs)} matched nothing.")
+            with app.app_context():
+                rows = db.session.execute(
+                    sa.select(UserSession.run_id, sa.func.count())
+                    .group_by(UserSession.run_id)
+                    .order_by(sa.func.count().desc())).all()
+            print("  run_ids present in the database:")
+            for rid, n in rows:
+                print(f"    {rid or '(none)':<40} {n} sessions")
+        sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

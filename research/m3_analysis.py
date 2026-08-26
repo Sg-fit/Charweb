@@ -150,6 +150,9 @@ def eta_sq(df, factor, cols):
 def main():
     path = sys.argv[1] if len(sys.argv) > 1 else "m3_features.csv"
     df = pd.read_csv(path)
+    if df.empty:
+        sys.exit(f"{path} is empty -- re-export it. If you passed --run-id, "
+                 "that run matched no sessions.")
 
     # gemini has a single session and 'matched' is a stray label from two
     # pilot runs; neither can support a train/test split.
@@ -160,6 +163,9 @@ def main():
 
     print(f"analysed sessions: {len(df)}  (llm_driven subset: {len(llm)})")
     print(f"harnesses: {df.harness.nunique()}   models in llm_driven: {llm.model.nunique()}")
+    if len(df) < 10 or df.harness.nunique() < 2:
+        sys.exit("Not enough labelled sessions (or only one harness) to analyse. "
+                 "Check the export filters.")
 
     # ---------------- H1 ----------------
     hr("H1  VARIANCE DECOMPOSITION  (semi-partial R^2 on 25 standardized features)")
