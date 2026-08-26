@@ -139,9 +139,22 @@ def llm_client():
     model = os.environ.get("CHARWEB_LLM_MODEL") or DEFAULT_MODEL.get(provider, "gpt-4o-mini")
     key = os.environ.get("CHARWEB_LLM_KEY") or os.environ.get("OPENAI_API_KEY")
     if not base_url or not key:
-        raise SystemExit(
-            "Set CHARWEB_LLM_PROVIDER (gemini|groq|openrouter|openai) and "
-            "CHARWEB_LLM_KEY. See the header of this file for an example.")
+        # Say which one is actually missing and what the valid values are. The
+        # old message named neither, so an unset key and an unknown provider
+        # produced the same text -- which is exactly how a batch run can lose
+        # every LLM session without it being obvious why.
+        problems = []
+        if not base_url:
+            problems.append(
+                f"CHARWEB_LLM_PROVIDER={provider!r} is not a known provider. "
+                f"Valid: {', '.join(sorted(PROVIDERS))}. "
+                f"(Or set CHARWEB_LLM_BASE_URL directly.)")
+        if not key:
+            problems.append(
+                "CHARWEB_LLM_KEY is empty or unset (OPENAI_API_KEY also works). "
+                "If you exported it in another shell or before an `ssh`, it is "
+                "gone -- export it in the same shell that launches this.")
+        raise SystemExit("LLM config incomplete:\n  - " + "\n  - ".join(problems))
     from openai import OpenAI
     # Tight per-request timeout so a slow/hung provider call fails in 45s and the
     # agent moves on, instead of stalling until run_grid's 900s kill. Our own
