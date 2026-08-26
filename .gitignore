@@ -14,3 +14,31 @@ __pycache__/
 .DS_Store
 .vagrant/
 cloudflared.deb
+
+# --- research data exports -------------------------------------------------
+# Full dumps of the collected sessions: megabytes of generated data that can be
+# rebuilt from the server at any time, and that git handles badly. The CODE
+# that produces them is tracked; the output is not.
+charweb_data/
+charweb_export_*.tar.gz
+*.sql
+
+# Per-run feature tables and analysis inputs
+# (regenerate with research/export_research_features.py).
+m3_features.csv
+blocked.csv
+interleaved.csv
+engineered_features.csv
+sessions.csv
+events.csv
+
+# Collection manifests written by the batch runners. One pattern covers them
+# all (ai_manifest.csv, ai_trials_manifest.csv, interleaved_manifest.csv, ...)
+# so a new runner's manifest doesn't quietly become untracked clutter.
+*manifest.csv
+
+# ...but DO keep the analysis result files: they are small, and they are the
+# record of what was actually run alongside the scripts that ran it.
+!research/m3_results.txt
+!research/m3_robustness_results.txt
+!research/m3_task_transfer_results.txt
