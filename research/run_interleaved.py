@@ -52,7 +52,7 @@ def build_arms(url, include_llm, llm_models):
             arms.append((
                 f"llm:{model}",
                 [sys.executable, str(ROOT / "app" / "llm_agent.py"),
-                 "--url", url, "--username", "ilv"],
+                 "--url", url, "--username", "ilv", "--headless"],
                 {"CHARWEB_LLM_MODEL": model},
             ))
     return arms

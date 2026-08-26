@@ -128,7 +128,13 @@ def parse_args():
     p = argparse.ArgumentParser(description="LLM-in-the-loop Charweb agent")
     p.add_argument("--username", required=True)
     p.add_argument("--url", default="https://charweb.net")
-    p.add_argument("--headless", action="store_true", default=False)
+    # Default to whatever the machine can actually do: a headless server has no
+    # DISPLAY, and launching headed there fails with an X-server error that
+    # looks nothing like "you forgot a flag". Explicit --headless/--headed still
+    # win, so a desktop run is unchanged.
+    p.add_argument("--headless", action="store_true",
+                   default=not os.environ.get("DISPLAY"))
+    p.add_argument("--headed", dest="headless", action="store_false")
     p.add_argument("--steps", type=int, default=int(os.environ.get("CHARWEB_MAX_STEPS", "18")))
     return p.parse_args()
 
