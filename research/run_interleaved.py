@@ -90,9 +90,20 @@ def main():
     if not arms:
         sys.exit("no arms selected")
 
-    if args.include_llm and not (os.environ.get("CHARWEB_LLM_KEY")
-                                 or os.environ.get("OPENAI_API_KEY")):
-        sys.exit("--include-llm needs CHARWEB_LLM_KEY (or OPENAI_API_KEY) set")
+    if args.include_llm:
+        missing = []
+        if not (os.environ.get("CHARWEB_LLM_KEY") or os.environ.get("OPENAI_API_KEY")):
+            missing.append("CHARWEB_LLM_KEY")
+        if not os.environ.get("CHARWEB_LLM_PROVIDER"):
+            missing.append("CHARWEB_LLM_PROVIDER  (e.g. nvidia)")
+        if missing:
+            # Checked here rather than discovered one dead session at a time:
+            # an unset key makes every LLM arm exit instantly, which silently
+            # turns an interleaved run back into a scripted-only one.
+            sys.exit("--include-llm needs these set in THIS shell before "
+                     "launching:\n  " + "\n  ".join(f"export {m}" for m in missing) +
+                     "\n\nNote they must be exported in the same shell as the "
+                     "nohup command -- a previous ssh session's exports are gone.")
 
     print(f"[interleaved] run_id={run_id}")
     print(f"[interleaved] {len(arms)} arms x {args.rounds} rounds = "
@@ -111,8 +122,17 @@ def main():
 
     seq = 0
     consecutive_fail = 0
+    # Per-arm failure counts. A globally-reset counter never catches one broken
+    # arm among healthy ones -- the good arms keep clearing it while the broken
+    # one burns every round.
+    arm_fail = {label: 0 for label, _, _ in arms}
+    disabled = set()
     for rnd in range(args.rounds):
-        order = list(arms)
+        order = [a for a in arms if a[0] not in disabled]
+        if not order:
+            print("\n[interleaved] ABORTING: every arm has been disabled.")
+            fh.close()
+            sys.exit(1)
         if args.shuffle:
             # Rotating in a FIXED order would leave arm position inside each
             # round correlated with time-within-round; shuffling each round
@@ -160,6 +180,12 @@ def main():
             # batch "completes" in seconds having collected nothing, which looks
             # like a finished run until the export comes back empty.
             if rc != 0 and dt < 10:
+                arm_fail[label] += 1
+                if arm_fail[label] >= 2 and label not in disabled:
+                    disabled.add(label)
+                    print(f"    DISABLING arm '{label}': failed instantly twice. "
+                          f"Its config is broken (missing key/dependency), not "
+                          f"unlucky. Remaining arms continue.")
                 consecutive_fail += 1
                 if consecutive_fail >= 3:
                     print(f"\n[interleaved] ABORTING: {consecutive_fail} collectors "
@@ -170,10 +196,16 @@ def main():
                     sys.exit(1)
             else:
                 consecutive_fail = 0
+                arm_fail[label] = 0
             time.sleep(args.sleep)
 
     fh.close()
     print(f"\n[interleaved] done. run_id={run_id}")
+    if disabled:
+        print(f"[interleaved] WARNING: {len(disabled)} arm(s) were disabled and "
+              f"contributed NOTHING: {', '.join(sorted(disabled))}")
+        print("[interleaved] This batch is not interleaved across those arms. "
+              "Fix their config and re-run before using it as a confound control.")
     print(f"[interleaved] manifest -> {manifest}")
     print("\nNext -- export BOTH batches (the --run-id filter is what keeps this")
     print("batch separate; without it you re-export the old blocked data):")
