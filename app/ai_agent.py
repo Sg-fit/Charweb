@@ -21,6 +21,24 @@ LEVEL_CONFIG = {
     4: {"name": "highly_humanlike", "delay": lambda: random.randint(40, 350), "pause": lambda: random.uniform(0.5, 4.0), "mouse_steps": 30, "typo_rate": 0.12}
 }
 
+def _submit_form(page, anchor):
+    """Submit the form CONTAINING `anchor`, not whatever submit button is first
+    in the DOM (a nav search button clicked instead of the real form submit is
+    why sign-in silently failed)."""
+    try:
+        form = page.locator(f"form:has({anchor})").first
+        btn = form.locator("input[type=submit], button[type=submit]")
+        if btn.count():
+            btn.first.click(timeout=5000)
+        else:
+            page.locator(anchor).first.press("Enter")
+    except Exception:
+        try:
+            page.locator(anchor).first.press("Enter")
+        except Exception:
+            pass
+
+
 def human_type(page, selector, text, level):
     config = LEVEL_CONFIG[level]
     page.click(selector)
@@ -52,7 +70,7 @@ def log_trial(username, level, trial, status):
         writer.writerow([username, level, LEVEL_CONFIG[level]["name"], trial, status])
 
 def run_full_mission(level, trial):
-    username = f"ai_L{level}_t{trial}"
+    username = f"ai_L{level}_t{trial}_{random.randint(1000, 9999)}"  # unique per run
     print(f"🚀 Level {level} ({LEVEL_CONFIG[level]['name']}) Trial {trial} - {username}")
 
     with sync_playwright() as p:
@@ -69,21 +87,21 @@ def run_full_mission(level, trial):
             human_type(page, "input[name='password']", PASSWORD, level)
             human_type(page, "input[name='password2']", PASSWORD, level)
             page.check("input[name='accept_terms']")
-            page.click("button[type='submit']")
+            _submit_form(page, "input[name='password2']")
             time.sleep(5)
 
             # Login
             page.goto(f"{BASE_URL}/login")
             human_type(page, "input[name='username']", username, level)
             human_type(page, "input[name='password']", PASSWORD, level)
-            page.click("button[type='submit']")
+            _submit_form(page, "input[name='password']")
             time.sleep(5)
 
             # Home + Post
             page.goto(BASE_URL)
             page.wait_for_selector("textarea", timeout=20000)
             human_type(page, "textarea", "This is a realistic test post from AI agent.", level)
-            page.click("button[type='submit']")
+            _submit_form(page, "textarea")
             time.sleep(4)
 
             # Explore

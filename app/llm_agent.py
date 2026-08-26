@@ -23,25 +23,52 @@ import argparse
 import json
 import os
 import random
+import re
+import sys
 import time
+
+# This file lives in app/, which also contains modules named email.py, code.py,
+# etc. Python puts a script's own directory first on sys.path, so those shadow
+# the standard-library modules that third-party packages import (openai ->
+# httpx -> importlib.metadata -> the stdlib 'email' package). Remove our own
+# directory from sys.path before importing anything third-party, so the real
+# stdlib wins.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path[:] = [p for p in sys.path if os.path.abspath(p or ".") != _HERE]
 
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
-try:
-    from run_labels import build_run_headers
-except ImportError:
-    from app.run_labels import build_run_headers
+
+def build_run_headers():
+    """Attribution labels from CHARWEB_* env vars, sent as X-* headers so the
+    server records harness/model/instruction/run_id on the session (see
+    Charweb routes.track). Empty dict if none set (a valid no-op)."""
+    env_to_hdr = {
+        "CHARWEB_RUN_ID": "X-Run-Id",
+        "CHARWEB_HARNESS": "X-Harness",
+        "CHARWEB_MODEL": "X-Model",
+        "CHARWEB_INSTRUCTION": "X-Instruction",
+        "CHARWEB_ADV_CONDITION": "X-Adv-Condition",
+        "CHARWEB_MIMICRY_TARGET": "X-Mimicry-Target",
+    }
+    return {h: os.environ[e] for e, h in env_to_hdr.items() if os.environ.get(e)}
 
 # OpenAI-compatible base URLs. Override with CHARWEB_LLM_BASE_URL if needed.
 PROVIDERS = {
     "gemini":     "https://generativelanguage.googleapis.com/v1beta/openai/",
     "groq":       "https://api.groq.com/openai/v1",
+    "cerebras":   "https://api.cerebras.ai/v1",
+    "nvidia":     "https://integrate.api.nvidia.com/v1",     # free, no daily cap, 40 RPM
+    "mistral":    "https://api.mistral.ai/v1",               # free ~1B tokens/month
     "openrouter": "https://openrouter.ai/api/v1",
     "openai":     "https://api.openai.com/v1",
 }
 DEFAULT_MODEL = {
     "gemini":     "gemini-2.0-flash",
-    "groq":       "llama-3.3-70b-versatile",
+    "groq":       "openai/gpt-oss-20b",
+    "cerebras":   "llama-3.3-70b",
+    "nvidia":     "meta/llama-3.3-70b-instruct",
+    "mistral":    "mistral-small-latest",
     "openrouter": "meta-llama/llama-3.3-70b-instruct",
     "openai":     "gpt-4o-mini",
 }
@@ -90,7 +117,7 @@ EXTRACT_JS = """
               type:el.getAttribute('type')||'', name:el.getAttribute('name')||'',
               href:(el.getAttribute('href')||'').slice(0,60), text:label});
     i++;
-    if (i >= 60) break;
+    if (i >= 30) break;
   }
   return out;
 }
@@ -102,7 +129,7 @@ def parse_args():
     p.add_argument("--username", required=True)
     p.add_argument("--url", default="https://charweb.net")
     p.add_argument("--headless", action="store_true", default=False)
-    p.add_argument("--steps", type=int, default=int(os.environ.get("CHARWEB_MAX_STEPS", "25")))
+    p.add_argument("--steps", type=int, default=int(os.environ.get("CHARWEB_MAX_STEPS", "18")))
     return p.parse_args()
 
 
@@ -116,7 +143,10 @@ def llm_client():
             "Set CHARWEB_LLM_PROVIDER (gemini|groq|openrouter|openai) and "
             "CHARWEB_LLM_KEY. See the header of this file for an example.")
     from openai import OpenAI
-    return OpenAI(base_url=base_url, api_key=key), model, provider
+    # Tight per-request timeout so a slow/hung provider call fails in 45s and the
+    # agent moves on, instead of stalling until run_grid's 900s kill. Our own
+    # loop handles retries, so disable the SDK's internal retries.
+    return OpenAI(base_url=base_url, api_key=key, timeout=90, max_retries=0), model, provider
 
 
 def ask_model(client, model, instruction, url, elements, history):
@@ -128,12 +158,46 @@ def ask_model(client, model, instruction, url, elements, history):
     user = (f"Current page: {url}\n\nInteractive elements:\n{listing}\n\n"
             f"Recent actions: {history[-4:] if history else 'none'}\n\n"
             "What is your next action? Reply with the JSON object only.")
-    resp = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "system", "content": system},
-                  {"role": "user", "content": user}],
-        temperature=0.7, max_tokens=300)
-    return resp.choices[0].message.content
+    for attempt in range(6):
+        try:
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "system", "content": system},
+                          {"role": "user", "content": user}],
+                temperature=0.7, max_tokens=300)
+            return resp.choices[0].message.content
+        except Exception as e:
+            msg = str(e)
+            low = msg.lower()
+            is_rate = "429" in msg or "resource_exhausted" in low or "rate limit" in low
+            is_transient = ("timed out" in low or "timeout" in low or "connection" in low
+                            or "503" in msg or "502" in msg or "500" in msg
+                            or "service unavailable" in low or "unavailable" in low
+                            or "resourceexhausted" in low or "overloaded" in low
+                            or "temporarily" in low)
+            if not (is_rate or is_transient):
+                print(f"[llm_agent] model error: {msg[:160]}")
+                return None            # genuine error: skip this step, don't crash
+            if is_rate and any(k in low for k in ("per day", "requests per day",
+                                                  "tokens per day", " rpd", " tpd", "daily")):
+                print("[llm_agent] DAILY free-tier quota reached for this key/model — "
+                      "waiting won't help. Resume after it resets, or switch provider/key.")
+                raise SystemExit(3)     # stop cleanly; don't spin all night
+            if is_rate:
+                mm = re.search(r"(?:try again|retry) in\s*(?:([0-9.]+)m)?\s*([0-9.]+)", low)
+                if mm:
+                    delay = float(mm.group(1) or 0) * 60 + float(mm.group(2))
+                else:
+                    m2 = re.search(r"([0-9.]+)\s*s", low)
+                    delay = float(m2.group(1)) if m2 else 30
+                delay = min(delay + 1, 90)
+                kind = "rate limited"
+            else:
+                delay = 5              # transient slow / timeout: quick retry
+                kind = "slow/timeout"
+            print(f"[llm_agent] {kind}; retry in {delay:.0f}s (attempt {attempt+1}/6)")
+            time.sleep(delay)
+    return None                        # exhausted retries: caller ends session
 
 
 def parse_action(raw):
@@ -194,6 +258,26 @@ def do_action(page, act, site_root):
         time.sleep(random.uniform(1.0, 2.5))
 
 
+def _submit_form(page, anchor_selector):
+    """Submit the form that CONTAINS anchor_selector, not whatever generic
+    submit button happens to be first in the DOM (e.g. a nav search button).
+    Clicks that form's own submit; falls back to pressing Enter in the field."""
+    try:
+        form = page.locator(f"form:has({anchor_selector})").first
+        btn = form.locator("input[type=submit], button[type=submit]")
+        if btn.count():
+            btn.first.click(timeout=5000)
+        else:
+            page.locator(anchor_selector).first.press("Enter")
+        page.wait_for_load_state("domcontentloaded")
+    except Exception:
+        try:
+            page.locator(anchor_selector).first.press("Enter")
+            page.wait_for_load_state("domcontentloaded")
+        except Exception:
+            pass
+
+
 def scripted_signup(page, site_root, username):
     """Deterministic account creation + login (constant across all sessions, so
     not part of the behavioural signature). The LLM drives everything after."""
@@ -213,19 +297,22 @@ def scripted_signup(page, site_root, username):
                 page.check(sel)
         except Exception:
             pass
-    try:
-        page.click("input[name='submit'], button[type='submit']", timeout=5000)
-    except Exception:
-        pass
-    time.sleep(1.5)
+    _submit_form(page, "input[name='password2']")   # submit the REGISTER form
+    time.sleep(1.0)
     page.goto(f"{site_root}/login", wait_until="domcontentloaded")
     try:
         page.fill("input[name='username']", username)
         page.fill("input[name='password']", pw)
-        page.click("input[name='submit'], button[type='submit']", timeout=5000)
     except Exception:
         pass
-    time.sleep(1.5)
+    _submit_form(page, "input[name='password']")     # submit the LOGIN form
+    time.sleep(1.0)
+    # Verify: a logged-out session redirects /edit_profile back to /login.
+    page.goto(f"{site_root}/edit_profile", wait_until="domcontentloaded")
+    logged_in = "/login" not in page.url
+    print(f"[llm_agent] account={username} logged_in={logged_in} (url={page.url})")
+    page.goto(f"{site_root}/", wait_until="domcontentloaded")
+    return logged_in
 
 
 def run():
@@ -236,9 +323,11 @@ def run():
     instr_name = os.environ.get("CHARWEB_INSTRUCTION", "free_explore")
     instruction = INSTRUCTIONS.get(instr_name, INSTRUCTIONS["free_explore"])
 
-    # Make the recorded labels match what actually ran, unless already set.
-    os.environ.setdefault("CHARWEB_HARNESS", "llm_driven")
-    os.environ.setdefault("CHARWEB_MODEL", model)
+    # Force the labels this harness owns, so a stale CHARWEB_HARNESS/CHARWEB_MODEL
+    # left in the shell from a previous run (PowerShell keeps $env: between
+    # commands) can't mislabel this session. This run IS llm_driven on `model`.
+    os.environ["CHARWEB_HARNESS"] = "llm_driven"
+    os.environ["CHARWEB_MODEL"] = model
     os.environ.setdefault("CHARWEB_INSTRUCTION", instr_name)
 
     print(f"[llm_agent] provider={provider} model={model} instruction={instr_name} "
@@ -250,15 +339,27 @@ def run():
         context.set_extra_http_headers(build_run_headers())
         page = context.new_page()
 
-        scripted_signup(page, site_root, args.username)
+        # Unique account per run so registration never collides with a prior run.
+        account = f"{args.username}_{os.urandom(3).hex()}"
+        if not scripted_signup(page, site_root, account):
+            print("[llm_agent] WARNING: could not confirm login; the agent will "
+                  "browse logged-out. Check the register/login form selectors.")
 
         history = []
+        fails = 0
         for step in range(args.steps):
             try:
                 elements = page.evaluate(EXTRACT_JS)
             except Exception:
                 elements = []
             raw = ask_model(client, model, instruction, page.url, elements, history)
+            if raw is None:
+                fails += 1
+                if fails >= 2:
+                    print("[llm_agent] repeated model failures; ending session early.")
+                    break
+                continue
+            fails = 0
             act = parse_action(raw)
             if not act:
                 print(f"[{step}] unparseable model reply; skipping:", (raw or "")[:120])
