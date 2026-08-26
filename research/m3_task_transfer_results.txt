@@ -1,0 +1,61 @@
+n=276 | features=25
+
+Most task-driven features (eta^2 of instruction alone):
+  geom_vel_mean              0.156
+  action_entropy             0.113
+  action_click_pct           0.093
+  action_n_types             0.093
+  struct_revisit_rate        0.079
+  geom_mousemove_n           0.077
+Least task-driven:
+  timing_iv_cv               0.002
+  timing_iv_min              0.000
+  struct_n_events            0.000
+  action_other_pct           0.000
+
+==========================================================================
+TASK TRANSFER -- target = harness   (train free_explore -> test checklist)
+==========================================================================
+  M0  raw features (baseline)        0.667   (F1 0.642 | 3-way, chance 0.333 | train 136 test 89) 
+  M1  per-task centering             0.528   (F1 0.582 | 3-way, chance 0.333 | train 136 test 89) 
+  M2  per-task ranks                 0.556   (F1 0.628 | 3-way, chance 0.333 | train 136 test 89) 
+  M3  drop 4 most task-driven (21 left) 0.500   (F1 0.529 | 3-way, chance 0.333 | train 136 test 89) 
+  M3  drop 8 most task-driven (17 left) 0.500   (F1 0.529 | 3-way, chance 0.333 | train 136 test 89) 
+  M3  drop 12 most task-driven (13 left) 0.667   (F1 0.642 | 3-way, chance 0.333 | train 136 test 89) 
+  M4  + half of target task (ref)    0.667   (F1 0.662 | 3-way, chance 0.333 | train 180 test 45) <- not a fix, upper bound
+
+==========================================================================
+TASK TRANSFER -- target = model   (train free_explore -> test checklist)
+==========================================================================
+  M0  raw features (baseline)        0.321   (F1 0.282 | 6-way, chance 0.167 | train 116 test 75) 
+  M1  per-task centering             0.208   (F1 0.126 | 6-way, chance 0.167 | train 116 test 75) 
+  M2  per-task ranks                 0.327   (F1 0.303 | 6-way, chance 0.167 | train 116 test 75) 
+  M3  drop 4 most task-driven (21 left) 0.338   (F1 0.287 | 6-way, chance 0.167 | train 116 test 75) 
+  M3  drop 8 most task-driven (17 left) 0.320   (F1 0.274 | 6-way, chance 0.167 | train 116 test 75) 
+  M3  drop 12 most task-driven (13 left) 0.310   (F1 0.270 | 6-way, chance 0.167 | train 116 test 75) 
+  M4  + half of target task (ref)    0.537   (F1 0.470 | 6-way, chance 0.167 | train 154 test 37) <- not a fix, upper bound
+
+==========================================================================
+APPLES-TO-APPLES: same classes, in-distribution vs transfer
+==========================================================================
+
+  harness: 3 classes present in BOTH tasks -> ['fenris', 'llm_driven', 'playwright']
+    same classes, in-distribution : 0.867 +/- 0.128
+    same classes, task transfer   : 0.667
+    true cost of changing task    : 0.200
+
+  model: 6 classes present in BOTH tasks -> ['google/gemma-3-12b-it', 'meta/llama-3.1-8b-instruct', 'nv-mistralai/mistral-nemo-12b-instruct', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.6-27b']
+    same classes, in-distribution : 0.582 +/- 0.094
+    same classes, task transfer   : 0.321
+    true cost of changing task    : 0.261
+
+==========================================================================
+READING THIS
+==========================================================================
+M1/M2 beating M0 means the task mostly shifts feature SCALE, and
+removing that scale recovers the agent's identity -- a real fix, with
+the caveat that it needs several sessions from the same task to
+normalise against. M3 beating M0 means a few task-driven features were
+doing the damage and can simply be dropped, which needs no assumption
+at all. If neither beats M0, the task genuinely changes the agent's
+behaviour and the only honest fix is training across more tasks.
