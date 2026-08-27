@@ -163,6 +163,13 @@ def llm_client():
     return OpenAI(base_url=base_url, api_key=key, timeout=90, max_retries=0), model, provider
 
 
+# Sentinel telling the caller a failure is PERMANENT (retired model, rejected
+# key) rather than transient (rate limit, timeout). Both used to surface as
+# None, so sustained rate limiting on a free tier looked identical to a dead
+# model -- and batch runners would disable a perfectly good arm because of it.
+PERMANENT_FAILURE = object()
+
+
 def ask_model(client, model, instruction, url, elements, history):
     system = instruction + "\n\n" + ACTION_SPEC
     listing = "\n".join(
@@ -191,7 +198,10 @@ def ask_model(client, model, instruction, url, elements, history):
                             or "temporarily" in low)
             if not (is_rate or is_transient):
                 print(f"[llm_agent] model error: {msg[:160]}")
-                return None            # genuine error: skip this step, don't crash
+                # PERMANENT: a retired model (410), a rejected key (403), an
+                # unknown model (404). Retrying cannot help and every later
+                # session on this model would fail the same way.
+                return PERMANENT_FAILURE
             if is_rate and any(k in low for k in ("per day", "requests per day",
                                                   "tokens per day", " rpd", " tpd", "daily")):
                 print("[llm_agent] DAILY free-tier quota reached for this key/model — "
@@ -211,7 +221,10 @@ def ask_model(client, model, instruction, url, elements, history):
                 kind = "slow/timeout"
             print(f"[llm_agent] {kind}; retry in {delay:.0f}s (attempt {attempt+1}/6)")
             time.sleep(delay)
-    return None                        # exhausted retries: caller ends session
+    # TRANSIENT, exhausted: the backend is alive but busy. End this session,
+    # but do NOT let the caller conclude the model is dead -- on a free tier,
+    # sustained rate limiting is normal and the next session may well succeed.
+    return None
 
 
 def parse_action(raw):
@@ -372,11 +385,17 @@ def run():
             except Exception:
                 elements = []
             raw = ask_model(client, model, instruction, page.url, elements, history)
+            if raw is PERMANENT_FAILURE:
+                # One is enough: this model will never answer with this key.
+                print("[llm_agent] model is unusable (permanent error); "
+                      "ending session and flagging the backend as dead.")
+                model_dead = True
+                break
             if raw is None:
                 fails += 1
                 if fails >= 2:
-                    print("[llm_agent] repeated model failures; ending session early.")
-                    model_dead = True
+                    print("[llm_agent] model busy/unreachable after retries; "
+                          "ending session early (backend may recover).")
                     break
                 continue
             fails = 0
