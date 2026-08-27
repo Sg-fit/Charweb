@@ -172,6 +172,45 @@ def classify(err):
     return "ERROR", msg[:90]
 
 
+def family(model_id):
+    """Coarse 'is this the same model wearing another name' key.
+
+    Strips the provider path, the alias/channel suffixes that point at another
+    entry in the same list ('-latest', '-preview', '-instruct'), and the version
+    number. 'gemini-3.5-flash-lite', 'gemini-flash-lite-latest' and
+    'gemini-3.1-flash-lite-preview' all collapse to 'gemini-flash-lite'.
+    Deliberately aggressive: picking two models that turn out to be one is a
+    silent, unrecoverable defect in the batch, while over-collapsing only costs
+    a rerun with --models to override.
+    """
+    m = model_id.split("/")[-1].lower()
+    for suf in ("-latest", "-preview", "-instruct", "-it"):
+        while m.endswith(suf):
+            m = m[: -len(suf)]
+    m = re.sub(r"[-_]?v?\d+(\.\d+)*[bB]?", "", m)      # version / size tokens
+    return re.sub(r"[-_]+", "-", m).strip("-")
+
+
+def distinct_models(rows):
+    """One row per family, fastest first, preferring a pinned id over an alias.
+
+    A '-latest' id is not just a duplicate risk: it can be repointed at a new
+    model by the provider partway through collection, which would put two
+    different models under one label. Never pick one when a pinned id for the
+    same family passed.
+    """
+    ordered = sorted(rows, key=lambda r: ("latest" in r["model"],
+                                          float(r["median_s"] or 999)))
+    out, seen = [], set()
+    for r in ordered:
+        f = family(r["model"])
+        if f in seen:
+            continue
+        seen.add(f)
+        out.append(r)
+    return sorted(out, key=lambda r: float(r["median_s"] or 999))
+
+
 def client_for(provider, key):
     from openai import OpenAI
     return OpenAI(base_url=PROVIDERS[provider], api_key=key,
@@ -337,10 +376,22 @@ def main():
     # The model axis must come from ONE provider. Timing features are the
     # harness axis's strongest signal, so two models on two providers would
     # compare infrastructure as much as models.
-    best = max(by_prov.items(), key=lambda kv: len(kv[1]), default=(None, []))
-    if best[0] and len(best[1]) >= 2:
-        pick = [r["model"] for r in best[1][:2]]
+    #
+    # It must also be DISTINCT models. Sorting by latency and taking the top
+    # two happily returns 'x-flash-lite' and 'x-flash-lite-latest' -- an alias
+    # and its target -- which is a model axis containing one model, and nothing
+    # downstream would reveal that: both labels appear, both collect fine, and
+    # the classifier just quietly fails to separate them.
+    best = max(by_prov.items(), key=lambda kv: len(distinct_models(kv[1])),
+               default=(None, []))
+    if best[0] and len(distinct_models(best[1])) >= 2:
+        chosen = distinct_models(best[1])
+        pick = [r["model"] for r in chosen[:3]]
+        dropped = [r["model"] for r in best[1] if r not in chosen]
         print(f"\nModel axis (same provider, no infra confound): {best[0]}")
+        if dropped:
+            print("  excluded as aliases/duplicates of a pick above: "
+                  + ", ".join(dropped))
         print(f"  --llm-models \"{','.join(pick)}\"")
         print("\nLaunch:")
         print(f"  export CHARWEB_LLM_PROVIDER={best[0]}")
