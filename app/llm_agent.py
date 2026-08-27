@@ -35,6 +35,12 @@ import time
 # stdlib wins.
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path[:] = [p for p in sys.path if os.path.abspath(p or ".") != _HERE]
+# ...but the repo root must stay importable, or `instructions` (the shared
+# instruction conditions) cannot be found once app/ itself is off the path.
+# The root holds no stdlib-shadowing names, so adding it is safe.
+_ROOT = os.path.dirname(_HERE)
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
@@ -73,21 +79,10 @@ DEFAULT_MODEL = {
     "openai":     "gpt-4o-mini",
 }
 
-INSTRUCTIONS = {
-    "free_explore": (
-        "You are a new user exploring a small social site called Charweb. There is "
-        "no checklist -- browse the way a curious person would: read the feed, open "
-        "posts, like or comment on things that interest you, check your profile, try "
-        "the daily sign-in and the little dungeon game, search for something. Vary "
-        "how long you spend on pages. Stop when you've had a natural look around."
-    ),
-    "checklist": (
-        "You are testing a small social site called Charweb. Do these in order: "
-        "(1) read the home feed and like a post, (2) search for a keyword, (3) open "
-        "a post and comment, (4) edit your profile 'about me', (5) do the daily "
-        "sign-in. Then finish."
-    ),
-}
+# Instruction conditions live in instructions.py (repo root) -- single source
+# shared with run_fenris.py, so a condition cannot mean two different things
+# depending on which harness ran it.
+from instructions import for_llm_agent, CONDITIONS as INSTRUCTIONS
 
 ACTION_SPEC = """\
 Reply with ONE JSON object and nothing else (no markdown fences). Schema:
@@ -340,7 +335,7 @@ def run():
     client, model, provider = llm_client()
 
     instr_name = os.environ.get("CHARWEB_INSTRUCTION", "free_explore")
-    instruction = INSTRUCTIONS.get(instr_name, INSTRUCTIONS["free_explore"])
+    instruction = for_llm_agent(instr_name)
 
     # Force the labels this harness owns, so a stale CHARWEB_HARNESS/CHARWEB_MODEL
     # left in the shell from a previous run (PowerShell keeps $env: between

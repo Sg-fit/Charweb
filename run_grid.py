@@ -56,7 +56,11 @@ def main():
                     default="openai/gpt-oss-120b,qwen/qwen3.6-27b",
                     help="comma-separated model ids (the model axis)")
     ap.add_argument("--instructions", default="free_explore,checklist",
-                    help="comma-separated instruction conditions")
+                    help="comma-separated instruction conditions; see "
+                         "instructions.py for the full list "
+                         "(free_explore, checklist, targeted_search, "
+                         "impossible_goal, single_action, deep_dungeon, "
+                         "reading_visit)")
     ap.add_argument("--sleep", type=float, default=8.0,
                     help="seconds to wait between sessions (rate-limit margin)")
     ap.add_argument("--run-id", default=None,
@@ -76,6 +80,16 @@ def main():
     run_id = args.run_id or "m2_" + datetime.datetime.now().strftime("%Y%m%d_%H%M")
     models = [m.strip() for m in args.models.split(",") if m.strip()]
     instrs = [i.strip() for i in args.instructions.split(",") if i.strip()]
+    # A misspelled condition would silently fall back to free_explore inside
+    # llm_agent and quietly produce a mislabelled cell -- fail here instead.
+    try:
+        from instructions import CONDITIONS as _C
+        bad = [i for i in instrs if i not in _C]
+        if bad:
+            raise SystemExit(f"unknown instruction condition(s): {bad}\n"
+                             f"valid: {', '.join(sorted(_C))}")
+    except ImportError:
+        pass
 
     total = len(models) * len(instrs) * args.per_cell
     print(f"=== Grid run_id={run_id} ===")

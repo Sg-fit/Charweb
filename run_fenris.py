@@ -41,32 +41,13 @@ import uuid
 
 import requests
 
-# NOTE: these are autonomous research runs with NO human present. The models
-# tend to stall by asking for confirmation ("I need your approval to..."), so
-# every task is explicit: use the web_browser tool immediately, invent the
-# credentials, and never ask to confirm (there is no one to answer).
-_PREFACE = (
-    "You have a web_browser tool that can open pages, fill in forms, and click "
-    "buttons. Use it NOW, on your own, without asking for permission or "
-    "confirmation -- this is an automated task with no human available to "
-    "approve anything, so any request to confirm will simply fail. Make up a "
-    "username, email, and password yourself. Do not narrate a plan or ask "
-    "questions; just call the browser tool and do the steps. "
-)
-TASKS = {
-    "free_explore": _PREFACE + (
-        "Task: go to https://charweb.net, register a brand-new account, then "
-        "explore like a curious new user -- read the home feed, open a post, like "
-        "or comment on something, check your profile, try the daily sign-in, and "
-        "search for something. Take a natural look around, then stop."
-    ),
-    "checklist": _PREFACE + (
-        "Task: go to https://charweb.net, register a brand-new account, then do "
-        "these in order: (1) read the home feed and like a post, (2) search for a "
-        "keyword, (3) open a post and comment, (4) edit your profile 'about me', "
-        "(5) do the daily sign-in. Then stop."
-    ),
-}
+# Instruction conditions come from instructions.py (repo root) -- same text the
+# llm_agent harness uses, so "checklist" means one thing across the study.
+# for_fenris() adds the act-without-asking preface and the register-first step
+# that this harness needs (llm_agent registers on its own).
+from instructions import CONDITIONS, for_fenris
+
+TASKS = {name: for_fenris(name) for name in CONDITIONS}
 
 
 def stream_chat(backend, messages, actor_name, session_id):

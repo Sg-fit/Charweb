@@ -203,17 +203,26 @@ def main():
     for l, row in zip(labs, cm):
         print(f"       {l[:18]:<18}" + " ".join(f"{v:>10}" for v in row))
 
+    # A small control batch can legitimately contain one model (or too few
+    # sessions per model to split), which is not an error -- it just means the
+    # model axis is not measurable here. Say so and carry on with the harness
+    # results rather than dying halfway through the report.
     rm = cv_score(llm, llm.model.values, ALL)
-    pm = perm_test(llm, llm.model.values, ALL, rm["balanced_acc"])
-    print(f"\n[H2-2] Model attribution within llm_driven, {llm.model.nunique()}-way,"
-          f" {rm['k']}-fold CV")
-    print(f"       balanced acc {rm['balanced_acc']:.3f} | macro-F1 {rm['macro_f1']:.3f}"
-          f" | chance {rm['chance']:.3f} | permutation p {pm:.4f}")
-    print("       per-model recall:")
-    for m_ in sorted(llm.model.unique()):
-        mask = llm.model.values == m_
-        rec = (rm["pred"][mask] == m_).mean()
-        print(f"         {m_:<40} n={mask.sum():>3}  recall {rec:.3f}")
+    if rm is None:
+        print(f"\n[H2-2] Model attribution: SKIPPED -- only "
+              f"{llm.model.nunique()} model(s) with enough sessions in this "
+              f"file (need >=2 classes and >=2 sessions each).")
+    else:
+        pm = perm_test(llm, llm.model.values, ALL, rm["balanced_acc"])
+        print(f"\n[H2-2] Model attribution within llm_driven, {llm.model.nunique()}-way,"
+              f" {rm['k']}-fold CV")
+        print(f"       balanced acc {rm['balanced_acc']:.3f} | macro-F1 {rm['macro_f1']:.3f}"
+              f" | chance {rm['chance']:.3f} | permutation p {pm:.4f}")
+        print("       per-model recall:")
+        for m_ in sorted(llm.model.unique()):
+            mask = llm.model.values == m_
+            rec = (rm["pred"][mask] == m_).mean()
+            print(f"         {m_:<40} n={mask.sum():>3}  recall {rec:.3f}")
 
     # Cross-instruction: train on one task framing, test on the other. This is
     # the "does the fingerprint survive a different task?" test.
@@ -238,24 +247,31 @@ def main():
     # a proxy for "which model wrote the actions".
     print("\n[H2-4] Leave-one-model-out: harness recall on an UNSEEN model")
     accs = []
-    for m_ in sorted(llm.model.unique()):
-        tr = df[~((df.harness == "llm_driven") & (df.model == m_))]
-        te = df[(df.harness == "llm_driven") & (df.model == m_)]
-        if len(te) < 5:
-            continue
-        clf = rf().fit(tr[ALL].values, tr.harness)
-        acc = (clf.predict(te[ALL].values) == "llm_driven").mean()
-        accs.append(acc)
-        print(f"       held out {m_:<40} n={len(te):>3}  recall {acc:.3f}")
-    if accs:
-        print(f"       MEAN recall on unseen models: {np.mean(accs):.3f}")
+    if llm.model.nunique() < 2:
+        # With one model, holding it out removes EVERY llm_driven session from
+        # training, so the classifier cannot predict that label at all and the
+        # recall is a guaranteed 0.000 that means nothing. Needs >=2 models.
+        print(f"       SKIPPED -- needs >=2 models in llm_driven "
+              f"(this file has {llm.model.nunique()}).")
+    else:
+        for m_ in sorted(llm.model.unique()):
+            tr = df[~((df.harness == "llm_driven") & (df.model == m_))]
+            te = df[(df.harness == "llm_driven") & (df.model == m_)]
+            if len(te) < 5:
+                continue
+            clf = rf().fit(tr[ALL].values, tr.harness)
+            acc = (clf.predict(te[ALL].values) == "llm_driven").mean()
+            accs.append(acc)
+            print(f"       held out {m_:<40} n={len(te):>3}  recall {acc:.3f}")
+        if accs:
+            print(f"       MEAN recall on unseen models: {np.mean(accs):.3f}")
 
     # Leave-one-harness-out for the scripted family: the three matched-task
     # profiles differ ONLY in behavioural policy, so separating them is the
     # cleanest evidence of a style fingerprint (task coverage is identical).
     scr = df[df.harness.str.startswith("scripted_")]
-    if scr.harness.nunique() > 1:
-        rs = cv_score(scr, scr.harness.values, ALL)
+    rs = cv_score(scr, scr.harness.values, ALL) if scr.harness.nunique() > 1 else None
+    if rs is not None:
         ps = perm_test(scr, scr.harness.values, ALL, rs["balanced_acc"])
         print(f"\n[H2-5] Matched-task scripted profiles only ({scr.harness.nunique()}-way,"
               f" n={len(scr)}): balanced acc {rs['balanced_acc']:.3f}"
@@ -269,7 +285,11 @@ def main():
     for gname, cols in GROUPS.items():
         rh = cv_score(df, df.harness.values, cols)
         rmm = cv_score(llm, llm.model.values, cols)
-        print(f"{gname:<42}{rh['balanced_acc']:>17.3f}{rmm['balanced_acc']:>15.3f}")
+        # "n/a" rather than a crash: the model column is unmeasurable in a
+        # single-model control batch, but the harness ablation still is.
+        h = f"{rh['balanced_acc']:.3f}" if rh else "n/a"
+        m = f"{rmm['balanced_acc']:.3f}" if rmm else "n/a"
+        print(f"{gname:<42}{h:>17}{m:>15}")
 
     gm = df.groupby("harness").geom_mousemove_n.mean()
     print("\nMean mousemove events per session, by harness:")

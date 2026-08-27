@@ -65,7 +65,12 @@ def main():
     ap.add_argument("--url", default="https://charweb.net")
     ap.add_argument("--run-id", default=None,
                     help="defaults to interleaved_<UTC timestamp>")
-    ap.add_argument("--instruction", default="free_explore")
+    ap.add_argument("--instruction", default="free_explore",
+                    help="single condition, or a comma-separated list to rotate "
+                         "through (each becomes its own arm, so conditions are "
+                         "interleaved in time exactly like harnesses are)")
+    ap.add_argument("--skip-corpus-check", action="store_true",
+                    help="skip the targeted_search/impossible_goal corpus check")
     ap.add_argument("--sleep", type=float, default=5.0,
                     help="pause between sessions")
     ap.add_argument("--include-llm", action="store_true",
@@ -82,8 +87,32 @@ def main():
     args = ap.parse_args()
 
     run_id = args.run_id or f"interleaved_{datetime.now(timezone.utc):%Y%m%d_%H%M%S}"
+    conditions = [c.strip() for c in args.instruction.split(",") if c.strip()]
+
+    # targeted_search and impossible_goal depend on what is in the post corpus,
+    # and both degrade silently if that changes. Check before burning a batch.
+    # Best-effort: this only works where the DB is reachable (i.e. on the
+    # server), so a failure to import is a skip, not an error.
+    if not args.skip_corpus_check and (
+            {"targeted_search", "impossible_goal"} & set(conditions)):
+        checker = ROOT / "research" / "check_conditions.py"
+        r = subprocess.run([sys.executable, str(checker)], cwd=str(ROOT))
+        if r.returncode == 1:
+            sys.exit("\n[interleaved] Refusing to collect: a condition's corpus "
+                     "assumption no longer holds (see above). Re-run with "
+                     "--skip-corpus-check only if you know why that is fine.")
+        if r.returncode not in (0, 1):
+            print("[interleaved] corpus check could not run (no DB here?) -- "
+                  "continuing without it.")
+
     arms = build_arms(args.url, args.include_llm,
                       [m.strip() for m in args.llm_models.split(",") if m.strip()])
+    # One arm per (harness, condition) pair, so instruction conditions are
+    # interleaved in time too. Collecting conditions in blocks would rebuild
+    # exactly the confound the interleaving exists to remove -- on a new axis.
+    if len(conditions) > 1:
+        arms = [(f"{label}|{cond}", argv, {**extra, "CHARWEB_INSTRUCTION": cond})
+                for label, argv, extra in arms for cond in conditions]
     if args.only:
         want = {s.strip() for s in args.only.split(",")}
         arms = [a for a in arms if a[0] in want]
@@ -142,8 +171,8 @@ def main():
             seq += 1
             env = dict(os.environ)
             env["CHARWEB_RUN_ID"] = run_id
-            env["CHARWEB_INSTRUCTION"] = args.instruction
-            env.update(extra)
+            env["CHARWEB_INSTRUCTION"] = conditions[0]
+            env.update(extra)   # per-arm condition, when rotating, wins here
             # The collectors force their own harness/model labels, so nothing
             # stale from this shell can mislabel a session.
             env.pop("CHARWEB_HARNESS", None)
