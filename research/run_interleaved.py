@@ -38,9 +38,9 @@ ROOT = Path(__file__).resolve().parent.parent
 # Each entry: label -> (argv, extra env). The label is only for the manifest;
 # the harness/model labels recorded on the server are set by the scripts
 # themselves, exactly as in a normal run.
-def build_arms(url, include_llm, llm_models):
+def build_arms(url, include_llm, llm_models, no_scripted=False):
     arms = []
-    for profile in ("plain", "noisy", "humanlike"):
+    for profile in () if no_scripted else ("plain", "noisy", "humanlike"):
         arms.append((
             f"scripted_{profile}",
             [sys.executable, str(ROOT / "app" / "scripted_agent.py"),
@@ -79,6 +79,11 @@ def main():
                     help="pause between sessions")
     ap.add_argument("--include-llm", action="store_true",
                     help="also rotate the LLM harness (needs CHARWEB_LLM_KEY)")
+    ap.add_argument("--no-scripted", action="store_true",
+                    help="drop the scripted arms. Use when topping up the MODEL "
+                         "axis: scripted sessions have no model, so they add "
+                         "collection time without adding anything the model "
+                         "comparison can use.")
     ap.add_argument("--llm-models",
                     default="openai/gpt-oss-20b,meta/llama-3.1-8b-instruct",
                     help="comma-separated models for the LLM arm")
@@ -110,7 +115,8 @@ def main():
                   "continuing without it.")
 
     arms = build_arms(args.url, args.include_llm,
-                      [m.strip() for m in args.llm_models.split(",") if m.strip()])
+                      [m.strip() for m in args.llm_models.split(",") if m.strip()],
+                      no_scripted=args.no_scripted)
     # One arm per (harness, condition) pair, so instruction conditions are
     # interleaved in time too. Collecting conditions in blocks would rebuild
     # exactly the confound the interleaving exists to remove -- on a new axis.
