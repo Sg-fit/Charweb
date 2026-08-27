@@ -208,6 +208,19 @@ def main():
             # dependency, a dead site), not unlucky. Without this guard the whole
             # batch "completes" in seconds having collected nothing, which looks
             # like a finished run until the export comes back empty.
+            # Exit 4 = the collector reached the site fine but its model backend
+            # is dead (retired model, bad key). Those sessions are recorded with
+            # a real label and almost no behaviour, so one is already one too
+            # many -- disable the arm on the first occurrence, not the second.
+            if rc == 4:
+                if label not in disabled:
+                    disabled.add(label)
+                    print(f"    DISABLING arm '{label}': model backend is not "
+                          f"usable (retired model or rejected key). Its sessions "
+                          f"would be label-only and would corrupt the model axis.")
+                time.sleep(args.sleep)
+                continue
+
             if rc != 0 and dt < 10:
                 arm_fail[label] += 1
                 if arm_fail[label] >= 2 and label not in disabled:

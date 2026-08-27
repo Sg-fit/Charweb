@@ -361,6 +361,11 @@ def run():
 
         history = []
         fails = 0
+        # A session that registers and logs in but then gets nothing from the
+        # model is NOT an llm_driven session -- it is a login with an
+        # llm_driven label on it. Left as a success it silently poisons the
+        # model axis with empty episodes, so track it and exit non-zero below.
+        model_dead = False
         for step in range(args.steps):
             try:
                 elements = page.evaluate(EXTRACT_JS)
@@ -371,6 +376,7 @@ def run():
                 fails += 1
                 if fails >= 2:
                     print("[llm_agent] repeated model failures; ending session early.")
+                    model_dead = True
                     break
                 continue
             fails = 0
@@ -394,6 +400,12 @@ def run():
         time.sleep(3)  # let the last track.js batch flush
         browser.close()
         print("[llm_agent] done.")
+
+    # Exit code 4 = "the model backend is broken, not this session". Batch
+    # runners use it to disable the arm instead of grinding through every
+    # remaining round producing label-only sessions.
+    if model_dead:
+        raise SystemExit(4)
 
 
 if __name__ == "__main__":
