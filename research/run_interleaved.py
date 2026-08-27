@@ -71,6 +71,10 @@ def main():
                          "interleaved in time exactly like harnesses are)")
     ap.add_argument("--skip-corpus-check", action="store_true",
                     help="skip the targeted_search/impossible_goal corpus check")
+    ap.add_argument("--session-timeout", type=int, default=900,
+                    help="kill a session after this many seconds. Lower it when "
+                         "a large model queues on a free tier: a stalled session "
+                         "otherwise holds the whole rotation for the full window")
     ap.add_argument("--sleep", type=float, default=5.0,
                     help="pause between sessions")
     ap.add_argument("--include-llm", action="store_true",
@@ -170,6 +174,11 @@ def main():
         for label, argv, extra in order:
             seq += 1
             env = dict(os.environ)
+            # Without this, a child's prints sit in a 4-8KB stdout buffer when
+            # the batch is redirected to a log file, so a slow session looks
+            # identical to a hung one -- you cannot tell progress from a stall
+            # until the process exits and flushes.
+            env["PYTHONUNBUFFERED"] = "1"
             env["CHARWEB_RUN_ID"] = run_id
             env["CHARWEB_INSTRUCTION"] = conditions[0]
             env.update(extra)   # per-arm condition, when rotating, wins here
@@ -185,7 +194,7 @@ def main():
                   flush=True)
             try:
                 p = subprocess.run(argv, env=env, cwd=str(ROOT),
-                                   timeout=900)
+                                   timeout=args.session_timeout)
                 rc = p.returncode
             except subprocess.TimeoutExpired:
                 rc = -1
