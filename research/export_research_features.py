@@ -35,7 +35,13 @@ from app import app, db
 from app.models import UserSession, TrackedAction
 
 TIMING = ["timing_iv_mean", "timing_iv_cv", "timing_iv_median", "timing_iv_p90",
-          "timing_iv_min", "timing_kd_mean", "timing_kd_cv", "timing_rate"]
+          "timing_iv_min", "timing_kd_mean", "timing_kd_cv", "timing_rate",
+          # Deliberation latency. An LLM-in-the-loop harness stops to think
+          # after each page render; a scripted one does not. These separate
+          # "how long before acting" from "how fast once acting", which the
+          # inter-event features above blend together.
+          "timing_ttfa_ms", "timing_think_mean", "timing_think_p90",
+          "timing_think_max"]
 ACTION = ["action_click_pct", "action_keydown_pct", "action_mousemove_pct",
           "action_scroll_pct", "action_pageload_pct", "action_other_pct",
           "action_n_types", "action_entropy"]
@@ -78,19 +84,69 @@ def _percentile(xs, q):
     return float(s[lo] * (hi - k) + s[hi] * (k - lo))
 
 
-def featurise(rows):
-    """rows: TrackedAction-like, ordered by (seq, timestamp). None if too short."""
+def _think_gaps(rows, clock):
+    """Gap (ms) from each pageload to the next real action on that page.
+
+    This is the agent's deliberation time. It is deliberately NOT the same as
+    timing_iv_*: those average over every consecutive pair, so a long think
+    followed by a burst of fast clicks washes out. Isolating the post-pageload
+    gap keeps the think visible.
+    """
+    gaps = []
+    for i, r in enumerate(rows):
+        if r.action_type != "pageload":
+            continue
+        for nxt in rows[i + 1:]:
+            if nxt.action_type == "pageload":
+                break                      # navigated again without acting
+            a, b = clock(r), clock(nxt)
+            if a and b:
+                gaps.append((b - a).total_seconds() * 1000.0)
+            break
+    return gaps
+
+
+def featurise(rows, clock=lambda r: r.timestamp):
+    """rows: TrackedAction-like, ordered by (seq, timestamp). None if too short.
+
+    `clock` selects which timestamp to trust. The client clock comes from
+    track.js and an attacker controls it; server_ts is assigned in /api/track
+    and they do not. Exporting the same sessions under both is what makes the
+    client-trust vs server-trust comparison (Phase 2, E3) possible -- and it
+    has to be done on the CLEAN data first, or there is no baseline to compare
+    an attack against.
+    """
     if len(rows) < 5:
         return None
+    if any(clock(r) is None for r in rows):
+        # Rows predating the server_ts column would silently produce garbage
+        # intervals if mixed with rows that have it.
+        return None
 
-    ts = [r.timestamp for r in rows]
+    ts = [clock(r) for r in rows]
     total = len(rows)
     duration = (ts[-1] - ts[0]).total_seconds()
 
     iv = [(ts[i] - ts[i - 1]).total_seconds() * 1000.0 for i in range(1, len(ts))]
-    kd_ts = [r.timestamp for r in rows if r.action_type == "keydown"]
+    kd_ts = [clock(r) for r in rows if r.action_type == "keydown"]
     kd = [(kd_ts[i] - kd_ts[i - 1]).total_seconds() * 1000.0
           for i in range(1, len(kd_ts))]
+
+    think = _think_gaps(rows, clock)
+    # Time to first action: from the session's first pageload to the first
+    # thing that is not a pageload. Falls back to the first interval when no
+    # pageload was recorded (older rows), rather than reporting a 0 that would
+    # read as "acted instantly".
+    ttfa = 0.0
+    first_pl = next((i for i, r in enumerate(rows)
+                     if r.action_type == "pageload"), None)
+    if first_pl is not None:
+        nxt = next((r for r in rows[first_pl + 1:]
+                    if r.action_type != "pageload"), None)
+        if nxt is not None:
+            ttfa = (clock(nxt) - ts[first_pl]).total_seconds() * 1000.0
+    elif iv:
+        ttfa = iv[0]
 
     iv_mean, iv_cv = _mean_cv(iv)
     kd_mean, kd_cv = _mean_cv(kd)
@@ -125,6 +181,10 @@ def featurise(rows):
         "timing_kd_mean": kd_mean,
         "timing_kd_cv": kd_cv,
         "timing_rate": (total / duration) if duration > 0 else 0.0,
+        "timing_ttfa_ms": ttfa,
+        "timing_think_mean": statistics.fmean(think) if think else 0.0,
+        "timing_think_p90": _percentile(think, 0.9),
+        "timing_think_max": max(think) if think else 0.0,
         "action_click_pct": _pct(counts.get("click", 0), total),
         "action_keydown_pct": _pct(counts.get("keydown", 0), total),
         "action_mousemove_pct": _pct(counts.get("mousemove", 0), total),
@@ -154,7 +214,16 @@ def main():
     ap.add_argument("--run-id", default=None,
                     help="export only sessions from this run_id "
                          "(e.g. an interleaved batch), or a comma-separated list")
+    ap.add_argument("--clock", choices=("client", "server"), default="client",
+                    help="which timestamp the timing features are built from. "
+                         "'client' is track.js's clock (an attacker controls "
+                         "it); 'server' is server_ts, assigned in /api/track "
+                         "(they do not). Export both on the clean data to get "
+                         "the client-trust vs server-trust baseline.")
     args = ap.parse_args()
+
+    clock = ((lambda r: r.server_ts) if args.clock == "server"
+             else (lambda r: r.timestamp))
 
     wanted_runs = ({r.strip() for r in args.run_id.split(",") if r.strip()}
                    if args.run_id else None)
@@ -183,7 +252,7 @@ def main():
                 if len(rows) < args.min_events:
                     skipped_short += 1
                     continue
-                feats = featurise(rows)
+                feats = featurise(rows, clock)
                 if feats is None:
                     skipped_short += 1
                     continue
