@@ -103,11 +103,15 @@ is complete. Never use an index that is not in the list."""
 # /explore, 98 elements exist and 68 were never listed, so controls the task
 # needed simply did not exist as far as the model was concerned.
 #
-# Kept configurable and defaulting to 30 so Phase 1 data stays reproducible.
-# ANY change here changes what the agent can perceive, and therefore how it
-# behaves -- data collected at a different cap is not comparable with data
-# collected at 30 and must use its own run_id.
-MAX_ELEMENTS = int(os.environ.get("CHARWEB_MAX_ELEMENTS", "30"))
+# Raised to 120 on 2026-08-28. At that cap nothing is truncated on any Charweb
+# page (explore lists 66 of 98; the other 32 are genuinely display:none comment
+# forms that only exist after their toggle is clicked).
+#
+# IMPORTANT: this changes what the agent can perceive, and therefore how it
+# behaves. Data collected at 120 is NOT comparable with the Phase 1 corpus,
+# which was collected at 30, and must use its own run_id. Set
+# CHARWEB_MAX_ELEMENTS=30 to reproduce Phase 1 collection exactly.
+MAX_ELEMENTS = int(os.environ.get("CHARWEB_MAX_ELEMENTS", "120"))
 
 EXTRACT_JS = """
 () => {

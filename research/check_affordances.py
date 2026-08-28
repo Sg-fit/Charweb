@@ -49,13 +49,32 @@ def report(page, la, label):
         "() => [...document.querySelectorAll('textarea')].map(t =>"
         " (t.name || t.placeholder || t.id || 'textarea'))")
     listed_tas = [e for e in els if e["tag"] == "textarea"]
-    hidden = max(0, total - len(els))
-    flag = "  <-- CAP HIT" if len(els) >= 30 else ""
+    # Two different reasons an element is missing, and conflating them is how a
+    # fixed cap kept reading as broken. Truncated = the cap cut the list short
+    # and raising it would help. Not-rendered = display:none / zero-size, which
+    # is correct behaviour (Charweb's comment forms are hidden until toggled)
+    # and no cap change will surface them.
+    invisible = page.evaluate(
+        "() => [...document.querySelectorAll("
+        "'a,button,input,textarea,select,[role=button]')].filter(el => {"
+        "  const r = el.getBoundingClientRect();"
+        "  if (r.width === 0 || r.height === 0) return true;"
+        "  const st = window.getComputedStyle(el);"
+        "  return st.visibility === 'hidden' || st.display === 'none';"
+        "}).length")
+    visible = total - invisible
+    truncated = max(0, visible - len(els))
     print(f"\n{label}")
     print(f"  url        {page.url}")
-    print(f"  listed     {len(els)} / {total} interactive{flag}")
-    if hidden:
-        print(f"  HIDDEN     {hidden} element(s) the agent never sees")
+    print(f"  listed     {len(els)} / {visible} visible  ({total} total, "
+          f"cap {la.MAX_ELEMENTS})"
+          + ("  <-- CAP TRUNCATING" if truncated else ""))
+    if truncated:
+        print(f"  TRUNCATED  {truncated} visible element(s) cut by the cap "
+              f"-- raise CHARWEB_MAX_ELEMENTS")
+    if invisible:
+        print(f"  not rendered {invisible} (display:none / zero-size; expected "
+              f"for collapsed comment forms)")
     print(f"  textareas  {len(tas)} on page {tas if tas else ''}")
     if tas and not listed_tas:
         print("  *** A textarea EXISTS but is NOT in the listing. The agent "
@@ -63,7 +82,7 @@ def report(page, la, label):
     elif listed_tas:
         print(f"  textarea visible to agent at index "
               f"{[e['index'] for e in listed_tas]}")
-    return len(els), total, bool(tas), bool(listed_tas)
+    return truncated, total, bool(tas), bool(listed_tas)
 
 
 def main():
@@ -117,19 +136,22 @@ def main():
         b.close()
 
     print("\n" + "=" * 64)
-    capped = any(l >= 30 for l, _, _, _ in findings)
-    invisible = any(has_ta and not seen for _, _, has_ta, seen in findings)
-    if invisible:
-        print("VERDICT: a needed control exists but is not listed. This is an "
-              "INSTRUMENTATION limit, not a model limit -- raise the cap in "
-              "EXTRACT_JS and/or list form fields before links.")
-    elif capped:
-        print("VERDICT: the 30-element cap was hit. Some controls are hidden; "
-              "raise it before concluding anything about agent capability.")
+    capped = any(t > 0 for t, _, _, _ in findings)
+    unlisted = any(has_ta and not seen for _, _, has_ta, seen in findings)
+    if capped:
+        print(f"VERDICT: the {la.MAX_ELEMENTS}-element cap is still truncating "
+              "visible controls. Raise CHARWEB_MAX_ELEMENTS before drawing any "
+              "conclusion about agent capability.")
+    elif unlisted:
+        print("VERDICT: a rendered control exists but is not listed -- an "
+              "INSTRUMENTATION limit, not a model limit. Check the selector "
+              "and the ranking in EXTRACT_JS.")
     else:
-        print("VERDICT: every control is visible to the agent. Failure to "
-              "comment is a genuine agent-behaviour finding, and the task "
-              "criterion can be reported as-is.")
+        print(f"VERDICT: at cap {la.MAX_ELEMENTS} nothing visible is being "
+              "truncated. Controls that remain unlisted are display:none and "
+              "require a click to reveal (Charweb's comment forms work this "
+              "way) -- so the task must TELL the agent to open them. Any "
+              "remaining failure is now genuine agent behaviour.")
 
 
 if __name__ == "__main__":
