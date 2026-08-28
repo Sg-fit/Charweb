@@ -222,21 +222,35 @@ def session_uid_from_cookies(context):
     import base64
     import json as _json
     import zlib
-    try:
-        raw = next((c["value"] for c in context.cookies()
-                    if c["name"] == "session"), None)
+    cookies = context.cookies()
+    # The cookie name is configurable (SESSION_COOKIE_NAME), so try the default
+    # first and then anything that decodes -- rather than assuming "session".
+    names = [c["name"] for c in cookies]
+    ordered = (["session"] if "session" in names else []) + \
+              [n for n in names if n != "session"]
+    for name in ordered:
+        raw = next((c["value"] for c in cookies if c["name"] == name), None)
         if not raw:
-            return None
-        payload = raw.split(".")[0]
-        compressed = payload.startswith("-")
-        if compressed:
-            payload = payload[1:]
-        data = base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4))
-        if compressed:
-            data = zlib.decompress(data)
-        return _json.loads(data).get("session_uid")
-    except Exception:
-        return None
+            continue
+        try:
+            # itsdangerous format: [.]<b64 payload>.<b64 timestamp>.<b64 sig>
+            # A LEADING DOT marks a zlib-compressed payload -- not a dash. With
+            # the wrong marker, split(".")[0] on a compressed cookie returns ""
+            # and every session comes back UNKNOWN, which is exactly what
+            # happened to run clean_v2.
+            compressed = raw.startswith(".")
+            payload = (raw[1:] if compressed else raw).split(".")[0]
+            if not payload:
+                continue
+            data = base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4))
+            if compressed:
+                data = zlib.decompress(data)
+            uid = _json.loads(data).get("session_uid")
+            if uid:
+                return uid
+        except Exception:
+            continue
+    return None
 
 
 def write_health(session_uid, args, model, used):
