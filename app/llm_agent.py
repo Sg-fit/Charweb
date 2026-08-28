@@ -169,6 +169,30 @@ def llm_client():
 # model -- and batch runners would disable a perfectly good arm because of it.
 PERMANENT_FAILURE = object()
 
+# Per-session collection health. Rate limiting does not merely slow a session
+# down -- it truncates it, and a truncated session is stored with a full label
+# and almost no behaviour. That shifts every feature at once and is invisible
+# after the fact unless counted at collection time. Printed in the end-of-session
+# summary so a batch's logs can be graded, and so a later analysis can control
+# for stalls the way §3.3 of the M3 write-up controls for session length.
+STATS = {"calls": 0, "rate_limited": 0, "transient": 0, "stalls": 0}
+
+# Minimum seconds between model calls. Providers meter per minute (NVIDIA is
+# 40 RPM), and an unpaced agent fires as fast as the site responds, so a LONGER
+# session is more likely to hit the limit than a short one -- which is why
+# raising the step cap made task success worse rather than better.
+#
+# Default 0 (off): a nonzero value adds a constant to the gap between actions,
+# which is exactly where the timing features live. Turning it on changes the
+# behavioural distribution and its sessions must NOT be pooled with data
+# collected without it.
+MIN_CALL_INTERVAL = float(os.environ.get("CHARWEB_MIN_CALL_INTERVAL_S", "0"))
+_last_call = [0.0]
+
+# Exhausted retry cycles tolerated before ending the session. Default 2 keeps
+# Phase 1 behaviour byte-identical; Phase 2 collection should raise it.
+MAX_STALLS = int(os.environ.get("CHARWEB_MAX_STALLS", "2"))
+
 
 def ask_model(client, model, instruction, url, elements, history):
     system = instruction + "\n\n" + ACTION_SPEC
@@ -181,6 +205,12 @@ def ask_model(client, model, instruction, url, elements, history):
             "What is your next action? Reply with the JSON object only.")
     for attempt in range(6):
         try:
+            if MIN_CALL_INTERVAL:
+                wait = MIN_CALL_INTERVAL - (time.time() - _last_call[0])
+                if wait > 0:
+                    time.sleep(wait)
+            _last_call[0] = time.time()
+            STATS["calls"] += 1
             resp = client.chat.completions.create(
                 model=model,
                 messages=[{"role": "system", "content": system},
@@ -216,10 +246,18 @@ def ask_model(client, model, instruction, url, elements, history):
                     delay = float(m2.group(1)) if m2 else 30
                 delay = min(delay + 1, 90)
                 kind = "rate limited"
+                STATS["rate_limited"] += 1
             else:
                 delay = 5              # transient slow / timeout: quick retry
                 kind = "slow/timeout"
-            print(f"[llm_agent] {kind}; retry in {delay:.0f}s (attempt {attempt+1}/6)")
+                STATS["transient"] += 1
+            # Show the actual provider message on the first attempt. Printing
+            # only the category ("rate limited" / "slow/timeout") hides whether
+            # this is a 429, a connection reset, or a read timeout -- which are
+            # three different problems with three different fixes.
+            detail = f" :: {msg[:120]}" if attempt == 0 else ""
+            print(f"[llm_agent] {kind}; retry in {delay:.0f}s "
+                  f"(attempt {attempt+1}/6){detail}")
             time.sleep(delay)
     # TRANSIENT, exhausted: the backend is alive but busy. End this session,
     # but do NOT let the caller conclude the model is dead -- on a free tier,
@@ -393,9 +431,17 @@ def run():
                 break
             if raw is None:
                 fails += 1
-                if fails >= 2:
-                    print("[llm_agent] model busy/unreachable after retries; "
-                          "ending session early (backend may recover).")
+                STATS["stalls"] += 1
+                # How many exhausted retry cycles to absorb before giving up.
+                # 2 is right for a short session, but on a long one against a
+                # per-minute limiter, hitting the ceiling twice is normal rather
+                # than fatal -- and quitting there is what produced sessions
+                # that used 3 of 30 steps. Raise it for Phase 2 collection where
+                # completing the task is the point.
+                if fails >= MAX_STALLS:
+                    print(f"[llm_agent] model busy/unreachable after retries "
+                          f"({fails} stalls, limit {MAX_STALLS}); ending session "
+                          f"early (backend may recover).")
                     break
                 continue
             fails = 0
@@ -418,7 +464,18 @@ def run():
 
         time.sleep(3)  # let the last track.js batch flush
         browser.close()
-        print("[llm_agent] done.")
+        # Grade the session in one line. "done." alone could not distinguish a
+        # session that ran its full budget from one that quit after three
+        # actions because the provider was throttling -- and those two produce
+        # very different feature rows under the same label.
+        used = step + 1 if args.steps else 0
+        health = ("clean" if not STATS["stalls"] and not STATS["rate_limited"]
+                  else "DEGRADED (rate-limited)" if STATS["stalls"]
+                  else "ok (retried)")
+        print(f"[llm_agent] done. steps_used={used}/{args.steps} "
+              f"calls={STATS['calls']} rate_limited={STATS['rate_limited']} "
+              f"transient={STATS['transient']} stalls={STATS['stalls']} "
+              f"-> {health}")
 
     # Exit code 4 = "the model backend is broken, not this session". Batch
     # runners use it to disable the arm instead of grinding through every
