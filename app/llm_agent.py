@@ -175,7 +175,14 @@ PERMANENT_FAILURE = object()
 # after the fact unless counted at collection time. Printed in the end-of-session
 # summary so a batch's logs can be graded, and so a later analysis can control
 # for stalls the way §3.3 of the M3 write-up controls for session length.
-STATS = {"calls": 0, "rate_limited": 0, "transient": 0, "stalls": 0}
+STATS = {"calls": 0, "rate_limited": 0, "transient": 0, "stalls": 0,
+         "empty": 0, "recovered": 0}
+
+# Reasoning models spend this budget on chain-of-thought before the visible
+# answer begins, so a value tuned for a plain chat model returns empty content
+# on a 200 OK. 300 was that value, and it cost roughly two thirds of the
+# actions in every gpt-oss session.
+MAX_TOKENS = int(os.environ.get("CHARWEB_MAX_TOKENS", "900"))
 
 # Minimum seconds between model calls. Providers meter per minute (NVIDIA is
 # 40 RPM), and an unpaced agent fires as fast as the site responds, so a LONGER
@@ -215,8 +222,38 @@ def ask_model(client, model, instruction, url, elements, history):
                 model=model,
                 messages=[{"role": "system", "content": system},
                           {"role": "user", "content": user}],
-                temperature=0.7, max_tokens=300)
-            return resp.choices[0].message.content
+                temperature=0.7, max_tokens=MAX_TOKENS)
+            choice = resp.choices[0]
+            content = choice.message.content
+
+            # A reasoning model (gpt-oss, deepseek-r*, o*) emits its chain of
+            # thought first and the visible answer after. With a small
+            # max_tokens the budget is spent before the answer starts, so the
+            # call SUCCEEDS and content comes back empty. That is not an error
+            # anywhere in the SDK -- no exception, no retry, HTTP 200 -- so it
+            # used to surface as an unexplained "model busy" stall with zero
+            # rate-limit and zero transient counts. Handle it explicitly.
+            if not (content or "").strip():
+                STATS["empty"] += 1
+                fr = getattr(choice, "finish_reason", None)
+                # Some providers park the answer here when content is empty.
+                reasoning = (getattr(choice.message, "reasoning_content", None)
+                             or getattr(choice.message, "reasoning", None) or "")
+                if STATS["empty"] == 1:
+                    print(f"[llm_agent] EMPTY content from model "
+                          f"(finish_reason={fr!r}, reasoning_chars={len(reasoning)}, "
+                          f"max_tokens={MAX_TOKENS}). This is a truncated "
+                          f"reasoning reply, not a rate limit -- raise "
+                          f"CHARWEB_MAX_TOKENS if it repeats.")
+                if reasoning.strip():
+                    # The action may still be recoverable from the reasoning
+                    # text; parse_action() looks for the first {...} block.
+                    STATS["recovered"] += 1
+                    return reasoning
+                if fr == "length" and attempt < 2:
+                    continue          # same call, another shot at finishing
+                return None
+            return content
         except Exception as e:
             msg = str(e)
             low = msg.lower()
@@ -469,12 +506,22 @@ def run():
         # actions because the provider was throttling -- and those two produce
         # very different feature rows under the same label.
         used = step + 1 if args.steps else 0
-        health = ("clean" if not STATS["stalls"] and not STATS["rate_limited"]
-                  else "DEGRADED (rate-limited)" if STATS["stalls"]
-                  else "ok (retried)")
+        # Name the actual cause. The previous version called every stall
+        # "rate-limited", which was wrong two thirds of the time and sent the
+        # investigation after the provider instead of after max_tokens.
+        if STATS["empty"] > STATS["calls"] * 0.2:
+            health = (f"DEGRADED (empty replies: {STATS['empty']}/"
+                      f"{STATS['calls']} -- raise CHARWEB_MAX_TOKENS)")
+        elif STATS["rate_limited"]:
+            health = "DEGRADED (rate-limited)"
+        elif STATS["stalls"]:
+            health = "DEGRADED (unexplained stalls)"
+        else:
+            health = "clean"
         print(f"[llm_agent] done. steps_used={used}/{args.steps} "
               f"calls={STATS['calls']} rate_limited={STATS['rate_limited']} "
-              f"transient={STATS['transient']} stalls={STATS['stalls']} "
+              f"transient={STATS['transient']} empty={STATS['empty']} "
+              f"recovered={STATS['recovered']} stalls={STATS['stalls']} "
               f"-> {health}")
 
     # Exit code 4 = "the model backend is broken, not this session". Batch
