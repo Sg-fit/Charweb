@@ -106,7 +106,11 @@ def score(s, events, posts, comments, likes, signins):
             ("liked", len(likes) >= 1),
             ("searched", _searched(events)),
             ("commented", len(comments) >= 1),
-            ("edited_profile", _visited(events, "/edit_profile")),
+            # NOT "visited /edit_profile": every harness lands on that page
+            # during registration, so visiting it scored 99% and credited an
+            # item nobody did. The state of the field is the only honest test.
+            ("edited_profile", bool((s.user.about_me or "").strip())
+             if s.user else False),
             ("daily_signin", len(signins) >= 1),
         ]
 
@@ -212,9 +216,17 @@ def main():
     if not rows_out:
         sys.exit("No labelled sessions matched. Check --run-id.")
 
-    print(f"{'condition':<20}{'n':>5}{'mean success':>14}")
+    print(f"{'condition':<20}{'n':>5}{'mean success':>14}{'usable as tax':>15}")
     for c, v in sorted(by_cond.items()):
-        print(f"{c:<20}{len(v):>5}{sum(v)/len(v):>14.3f}")
+        m = sum(v) / len(v)
+        # A condition can only measure an evasion tax if there is success to
+        # lose. Near the floor, an attack cannot cost anything. impossible_goal
+        # is excluded for the opposite reason: it scores success for NOT acting,
+        # so an attack that suppresses actions would raise it.
+        note = ("no (floor)" if m < 0.40 else
+                "no (inverted)" if c == "impossible_goal" else
+                "no (coverage)" if c == "free_explore" else "yes")
+        print(f"{c:<20}{len(v):>5}{m:>14.3f}{note:>15}")
 
     print("\nBASELINE for the evasion tax: an attack run (E1..E5) re-scored here")
     print("must be compared against these numbers. A drop in success is the tax;")
