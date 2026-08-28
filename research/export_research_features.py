@@ -214,6 +214,16 @@ def main():
     ap.add_argument("--run-id", default=None,
                     help="export only sessions from this run_id "
                          "(e.g. an interleaved batch), or a comma-separated list")
+    ap.add_argument("--health-csv", default=None,
+                    help="collection_health.csv written by llm_agent. Sessions "
+                         "listed there as not clean are DROPPED. A session "
+                         "where the model returned empty replies did not browse "
+                         "the way that model browses -- it browsed the way the "
+                         "plumbing let it -- and pooling those with clean ones "
+                         "measures the pipeline as much as the agent.")
+    ap.add_argument("--max-empty-rate", type=float, default=0.0,
+                    help="with --health-csv, tolerate up to this fraction of "
+                         "empty replies (0.0 = require perfectly clean)")
     ap.add_argument("--clock", choices=("client", "server"), default="client",
                     help="which timestamp the timing features are built from. "
                          "'client' is track.js's clock (an attacker controls "
@@ -225,12 +235,33 @@ def main():
     clock = ((lambda r: r.server_ts) if args.clock == "server"
              else (lambda r: r.timestamp))
 
+    # session_uid -> keep?  Only sessions PRESENT in the health file are
+    # judged; sessions collected before health tracking existed are left alone
+    # rather than silently dropped, since absence here means "unknown", not
+    # "bad".
+    health = {}
+    if args.health_csv:
+        with open(args.health_csv, newline="", encoding="utf-8") as fh:
+            for row in csv.DictReader(fh):
+                uid = (row.get("session_uid") or "").strip()
+                if not uid:
+                    continue
+                try:
+                    rate = float(row.get("empty_rate") or 0)
+                except ValueError:
+                    rate = 1.0
+                health[uid] = (row.get("clean") == "1") or rate <= args.max_empty_rate
+        bad = sum(1 for v in health.values() if not v)
+        print(f"health file: {len(health)} sessions, {bad} marked degraded "
+              f"(max_empty_rate={args.max_empty_rate})")
+
     wanted_runs = ({r.strip() for r in args.run_id.split(",") if r.strip()}
                    if args.run_id else None)
 
     with app.app_context():
         sessions = db.session.scalars(sa.select(UserSession)).all()
         written = skipped_short = skipped_unlabelled = 0
+        skipped_degraded = 0
 
         with open(args.out, "w", newline="", encoding="utf-8") as fh:
             w = csv.DictWriter(fh, fieldnames=LABELS + FEATURES)
@@ -241,6 +272,9 @@ def main():
                     continue
                 if not s.harness and not args.include_unlabelled:
                     skipped_unlabelled += 1
+                    continue
+                if health.get(s.session_uid) is False:
+                    skipped_degraded += 1
                     continue
                 rows = db.session.scalars(
                     sa.select(TrackedAction)
@@ -270,7 +304,8 @@ def main():
                 written += 1
 
     print(f"wrote {written} sessions -> {args.out}")
-    print(f"skipped: {skipped_short} too-short, {skipped_unlabelled} unlabelled")
+    print(f"skipped: {skipped_short} too-short, {skipped_unlabelled} unlabelled"
+          + (f", {skipped_degraded} degraded (empty model replies)" if skipped_degraded else ""))
 
     if written == 0:
         # An empty export used to sail on silently and only blow up two scripts
