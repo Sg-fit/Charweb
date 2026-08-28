@@ -182,7 +182,16 @@ STATS = {"calls": 0, "rate_limited": 0, "transient": 0, "stalls": 0,
 # answer begins, so a value tuned for a plain chat model returns empty content
 # on a 200 OK. 300 was that value, and it cost roughly two thirds of the
 # actions in every gpt-oss session.
-MAX_TOKENS = int(os.environ.get("CHARWEB_MAX_TOKENS", "900"))
+# 900 was still short: gpt-oss-20b emits ~3900 characters (~1000 tokens) of
+# reasoning alone before its answer starts. The budget has to cover reasoning
+# AND the answer, or the call succeeds and returns nothing.
+MAX_TOKENS = int(os.environ.get("CHARWEB_MAX_TOKENS", "2500"))
+
+# Where per-session collection health is appended. The log line alone cannot be
+# joined to the data: it names no session. Writing session_uid + counters here
+# is what makes "exclude every degraded session" possible at analysis time
+# instead of hoping the degradation averaged out.
+HEALTH_CSV = os.environ.get("CHARWEB_HEALTH_CSV", "collection_health.csv")
 
 # Minimum seconds between model calls. Providers meter per minute (NVIDIA is
 # 40 RPM), and an unpaced agent fires as fast as the site responds, so a LONGER
@@ -199,6 +208,71 @@ _last_call = [0.0]
 # Exhausted retry cycles tolerated before ending the session. Default 2 keeps
 # Phase 1 behaviour byte-identical; Phase 2 collection should raise it.
 MAX_STALLS = int(os.environ.get("CHARWEB_MAX_STALLS", "2"))
+
+
+def session_uid_from_cookies(context):
+    """Pull Charweb's session_uid out of the Flask session cookie.
+
+    The server keeps session_uid in the signed Flask session (routes.track),
+    so it is never sent to the client as its own cookie -- but the signed
+    cookie's PAYLOAD is plain base64 JSON, and reading it needs no secret key
+    (only forging one would). Signature and expiry are ignored on purpose:
+    this is our own session, read for labelling, not authentication.
+    """
+    import base64
+    import json as _json
+    import zlib
+    try:
+        raw = next((c["value"] for c in context.cookies()
+                    if c["name"] == "session"), None)
+        if not raw:
+            return None
+        payload = raw.split(".")[0]
+        compressed = payload.startswith("-")
+        if compressed:
+            payload = payload[1:]
+        data = base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4))
+        if compressed:
+            data = zlib.decompress(data)
+        return _json.loads(data).get("session_uid")
+    except Exception:
+        return None
+
+
+def write_health(session_uid, args, model, used):
+    """Append one row per session so the exporter can drop degraded ones."""
+    import csv as _csv
+    empty_rate = STATS["empty"] / STATS["calls"] if STATS["calls"] else 0.0
+    row = {
+        "session_uid": session_uid or "",
+        "run_id": os.environ.get("CHARWEB_RUN_ID", ""),
+        "harness": "llm_driven",
+        "model": model,
+        "instruction_condition": os.environ.get("CHARWEB_INSTRUCTION", ""),
+        "steps_used": used, "steps_budget": args.steps,
+        "calls": STATS["calls"], "rate_limited": STATS["rate_limited"],
+        "transient": STATS["transient"], "empty": STATS["empty"],
+        "recovered": STATS["recovered"], "stalls": STATS["stalls"],
+        "empty_rate": f"{empty_rate:.3f}",
+        "max_tokens": MAX_TOKENS,
+        # One column the analysis can filter on directly. A session is clean
+        # when the model answered every time it was asked; anything else means
+        # its behaviour was shaped by the plumbing as well as by the model.
+        "clean": int(STATS["empty"] == 0 and STATS["stalls"] == 0
+                     and STATS["rate_limited"] == 0),
+    }
+    try:
+        new = not os.path.exists(HEALTH_CSV)
+        with open(HEALTH_CSV, "a", newline="", encoding="utf-8") as fh:
+            w = _csv.DictWriter(fh, fieldnames=list(row))
+            if new:
+                w.writeheader()
+            w.writerow(row)
+    except Exception as e:
+        print(f"[llm_agent] could not write health row: {str(e)[:90]}")
+    if not session_uid:
+        print("[llm_agent] WARNING: session_uid unavailable; this session "
+              "cannot be excluded by health later.")
 
 
 def ask_model(client, model, instruction, url, elements, history):
@@ -245,9 +319,13 @@ def ask_model(client, model, instruction, url, elements, history):
                           f"max_tokens={MAX_TOKENS}). This is a truncated "
                           f"reasoning reply, not a rate limit -- raise "
                           f"CHARWEB_MAX_TOKENS if it repeats.")
-                if reasoning.strip():
-                    # The action may still be recoverable from the reasoning
-                    # text; parse_action() looks for the first {...} block.
+                # Only salvage reasoning text that actually contains a JSON
+                # object. Returning raw chain-of-thought prose just moves the
+                # failure one step later ("unparseable model reply; skipping")
+                # and still burns the step -- worse than admitting the miss,
+                # because it looks like the model answered badly rather than
+                # not at all.
+                if reasoning.strip() and re.search(r"\{[^{}]*\"action\"", reasoning):
                     STATS["recovered"] += 1
                     return reasoning
                 if fr == "length" and attempt < 2:
@@ -500,6 +578,8 @@ def run():
             time.sleep(random.uniform(0.6, 2.0))  # human-like dwell
 
         time.sleep(3)  # let the last track.js batch flush
+        # Read the id BEFORE closing the browser -- the context is gone after.
+        sid = session_uid_from_cookies(context)
         browser.close()
         # Grade the session in one line. "done." alone could not distinguish a
         # session that ran its full budget from one that quit after three
@@ -518,11 +598,12 @@ def run():
             health = "DEGRADED (unexplained stalls)"
         else:
             health = "clean"
+        write_health(sid, args, model, used)
         print(f"[llm_agent] done. steps_used={used}/{args.steps} "
               f"calls={STATS['calls']} rate_limited={STATS['rate_limited']} "
               f"transient={STATS['transient']} empty={STATS['empty']} "
               f"recovered={STATS['recovered']} stalls={STATS['stalls']} "
-              f"-> {health}")
+              f"sid={(sid or 'UNKNOWN')[:12]} -> {health}")
 
     # Exit code 4 = "the model backend is broken, not this session". Batch
     # runners use it to disable the arm instead of grinding through every
