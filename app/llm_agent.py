@@ -99,15 +99,43 @@ Pick an element only by an [index] shown in the list. After 'type' on a search
 or form field, Enter is pressed automatically. Use 'done' when your task/browse
 is complete. Never use an index that is not in the list."""
 
+# How many elements the agent is shown. 30 was a silent task-killer: on
+# /explore, 98 elements exist and 68 were never listed, so controls the task
+# needed simply did not exist as far as the model was concerned.
+#
+# Kept configurable and defaulting to 30 so Phase 1 data stays reproducible.
+# ANY change here changes what the agent can perceive, and therefore how it
+# behaves -- data collected at a different cap is not comparable with data
+# collected at 30 and must use its own run_id.
+MAX_ELEMENTS = int(os.environ.get("CHARWEB_MAX_ELEMENTS", "30"))
+
 EXTRACT_JS = """
 () => {
-  const els = [...document.querySelectorAll('a,button,input,textarea,select,[role=button]')];
-  const out = []; let i = 0;
-  for (const el of els) {
+  const SEL = 'a,button,input,textarea,select,[role=button]';
+  const all = [...document.querySelectorAll(SEL)];
+  const vis = all.filter(el => {
     const r = el.getBoundingClientRect();
-    if (r.width === 0 || r.height === 0) continue;
+    if (r.width === 0 || r.height === 0) return false;
     const st = window.getComputedStyle(el);
-    if (st.visibility === 'hidden' || st.display === 'none') continue;
+    return st.visibility !== 'hidden' && st.display !== 'none';
+  });
+  // Order matters once a cap bites. A feed is mostly links, so a naive
+  // document-order listing spends the whole budget on navigation and drops the
+  // form controls -- the only elements that can actually complete a task.
+  // Rank interactive controls first, links last, stable within each group.
+  const rank = el => {
+    const t = el.tagName.toLowerCase();
+    if (t === 'textarea' || t === 'select') return 0;
+    if (t === 'input') {
+      const ty = (el.getAttribute('type') || 'text').toLowerCase();
+      return (ty === 'hidden') ? 9 : 0;
+    }
+    if (t === 'button' || el.getAttribute('role') === 'button') return 1;
+    return 2;                                   // plain links
+  };
+  vis.sort((a, b) => rank(a) - rank(b));
+  const out = []; let i = 0;
+  for (const el of vis) {
     const label = (el.innerText || el.value || el.getAttribute('placeholder') ||
                    el.getAttribute('name') || el.getAttribute('aria-label') || '')
                   .trim().replace(/\\s+/g,' ').slice(0,80);
@@ -116,11 +144,11 @@ EXTRACT_JS = """
               type:el.getAttribute('type')||'', name:el.getAttribute('name')||'',
               href:(el.getAttribute('href')||'').slice(0,60), text:label});
     i++;
-    if (i >= 30) break;
+    if (i >= __MAX_ELEMENTS__) break;
   }
   return out;
 }
-"""
+""".replace("__MAX_ELEMENTS__", str(MAX_ELEMENTS))
 
 
 def parse_args():
