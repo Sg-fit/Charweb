@@ -73,7 +73,11 @@ DEFAULT_MODEL = {
     "gemini":     "gemini-2.0-flash",
     "groq":       "openai/gpt-oss-20b",
     "cerebras":   "llama-3.3-70b",
-    "nvidia":     "meta/llama-3.3-70b-instruct",
+    # was meta/llama-3.3-70b-instruct until it hit end-of-life and started
+    # returning 410 Gone. A dead default is worse than no default: forgetting
+    # CHARWEB_LLM_MODEL silently produces label-only sessions instead of an
+    # error. gpt-oss-20b is verified working by research/check_providers.py.
+    "nvidia":     "openai/gpt-oss-20b",
     "mistral":    "mistral-small-latest",
     "openrouter": "meta-llama/llama-3.3-70b-instruct",
     "openai":     "gpt-4o-mini",
@@ -253,7 +257,7 @@ def session_uid_from_cookies(context):
     return None
 
 
-def write_health(session_uid, args, model, used):
+def write_health(session_uid, args, model, used, model_dead=False):
     """Append one row per session so the exporter can drop degraded ones."""
     import csv as _csv
     empty_rate = STATS["empty"] / STATS["calls"] if STATS["calls"] else 0.0
@@ -269,11 +273,17 @@ def write_health(session_uid, args, model, used):
         "recovered": STATS["recovered"], "stalls": STATS["stalls"],
         "empty_rate": f"{empty_rate:.3f}",
         "max_tokens": MAX_TOKENS,
+        # A retired model or rejected key kills the session after one call. The
+        # counters above stay at zero because nothing was retried and nothing
+        # came back empty -- so without this flag such a session scores as
+        # perfectly clean, which is the opposite of the truth. Found exactly
+        # that way: a fallback to a 410-Gone model logged clean=1 on 1 step.
+        "model_dead": int(bool(model_dead)),
         # One column the analysis can filter on directly. A session is clean
         # when the model answered every time it was asked; anything else means
         # its behaviour was shaped by the plumbing as well as by the model.
         "clean": int(STATS["empty"] == 0 and STATS["stalls"] == 0
-                     and STATS["rate_limited"] == 0),
+                     and STATS["rate_limited"] == 0 and not model_dead),
     }
     try:
         new = not os.path.exists(HEALTH_CSV)
@@ -603,7 +613,9 @@ def run():
         # Name the actual cause. The previous version called every stall
         # "rate-limited", which was wrong two thirds of the time and sent the
         # investigation after the provider instead of after max_tokens.
-        if STATS["empty"] > STATS["calls"] * 0.2:
+        if model_dead:
+            health = "DEAD (model unusable -- session is label-only)"
+        elif STATS["empty"] > STATS["calls"] * 0.2:
             health = (f"DEGRADED (empty replies: {STATS['empty']}/"
                       f"{STATS['calls']} -- raise CHARWEB_MAX_TOKENS)")
         elif STATS["rate_limited"]:
@@ -612,7 +624,7 @@ def run():
             health = "DEGRADED (unexplained stalls)"
         else:
             health = "clean"
-        write_health(sid, args, model, used)
+        write_health(sid, args, model, used, model_dead)
         print(f"[llm_agent] done. steps_used={used}/{args.steps} "
               f"calls={STATS['calls']} rate_limited={STATS['rate_limited']} "
               f"transient={STATS['transient']} empty={STATS['empty']} "
