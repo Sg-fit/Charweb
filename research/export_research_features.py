@@ -250,7 +250,17 @@ def main():
                     rate = float(row.get("empty_rate") or 0)
                 except ValueError:
                     rate = 1.0
-                health[uid] = (row.get("clean") == "1") or rate <= args.max_empty_rate
+                # AND, not OR. The old `or` let any session with zero empty
+                # replies through regardless of stalls or a dead model -- which
+                # is how a batch of 3-step throttled stubs reached the analysis
+                # and scored as the most separable class in it. `clean` is the
+                # authority; --max-empty-rate only ever RELAXES it.
+                ok = row.get("clean") == "1"
+                if not ok and args.max_empty_rate > 0:
+                    ok = (rate <= args.max_empty_rate
+                          and row.get("model_dead") != "1"
+                          and int(row.get("stalls") or 0) == 0)
+                health[uid] = ok
         bad = sum(1 for v in health.values() if not v)
         print(f"health file: {len(health)} sessions, {bad} marked degraded "
               f"(max_empty_rate={args.max_empty_rate})")
