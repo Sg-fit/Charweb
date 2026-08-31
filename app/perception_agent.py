@@ -99,7 +99,56 @@ is pressed automatically. Use 'done' when your task is complete.""" % (
 
 # ------------------------------------------------------------------ perception
 
-_AXTREE_JS = None   # accessibility tree comes from Playwright, not JS
+# Playwright's page.accessibility was deprecated and removed, so the tree is
+# built here from ARIA semantics -- which is what browser-use and Playwright
+# MCP do in practice anyway. Elements are stamped with data-llm-idx so the
+# action space matches the other indexed modes: the variable under test is what
+# the agent SEES (role + accessible name, not tag + text), not how the click is
+# ultimately dispatched.
+_AXTREE_JS = """
+() => {
+  const roleOf = (el) => {
+    const explicit = el.getAttribute('role');
+    if (explicit) return explicit;
+    const t = el.tagName.toLowerCase();
+    if (t === 'a') return el.hasAttribute('href') ? 'link' : 'generic';
+    if (t === 'button') return 'button';
+    if (t === 'select') return 'combobox';
+    if (t === 'textarea') return 'textbox';
+    if (t === 'input') {
+      const ty = (el.getAttribute('type') || 'text').toLowerCase();
+      if (ty === 'search') return 'searchbox';
+      if (ty === 'checkbox') return 'checkbox';
+      if (ty === 'radio') return 'radio';
+      if (['submit','button','reset','image'].includes(ty)) return 'button';
+      return 'textbox';
+    }
+    return 'generic';
+  };
+  const nameOf = (el) =>
+    (el.getAttribute('aria-label') || el.getAttribute('alt') ||
+     el.innerText || el.value || el.getAttribute('placeholder') ||
+     el.getAttribute('title') || el.getAttribute('name') || '')
+    .trim().replace(/\\s+/g, ' ').slice(0, 70);
+  const out = []; let i = 0;
+  for (const el of document.querySelectorAll(
+        'a,button,input,textarea,select,[role]')) {
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) continue;
+    const st = window.getComputedStyle(el);
+    if (st.visibility === 'hidden' || st.display === 'none') continue;
+    if (el.getAttribute('aria-hidden') === 'true') continue;
+    const role = roleOf(el);
+    if (role === 'generic') continue;
+    el.setAttribute('data-llm-idx', i);
+    out.push({index: i, role: role, name: nameOf(el),
+              disabled: el.disabled === true});
+    i++;
+    if (i >= %d) break;
+  }
+  return out;
+}
+""" % LA.MAX_ELEMENTS
 
 _RAWHTML_JS = """
 () => {
@@ -178,20 +227,11 @@ def observe(page, mode):
         return f"Interactive elements:\n{listing}", _INDEXED_SPEC, None
 
     if mode == "axtree":
-        snap = page.accessibility.snapshot() or {}
-        nodes, lines = [], []
-        def walk(n, depth=0):
-            role, name = n.get("role", ""), (n.get("name") or "").strip()
-            # Only nodes an agent could act on, mirroring what a11y-driven
-            # agents actually expose.
-            if role in ("link", "button", "textbox", "searchbox", "combobox",
-                        "checkbox", "radio", "menuitem", "tab") and len(nodes) < LA.MAX_ELEMENTS:
-                lines.append(f'[{len(nodes)}] {role} "{name[:70]}"')
-                nodes.append((role, name))
-            for c in n.get("children", []) or []:
-                walk(c, depth + 1)
-        walk(snap)
-        return ("Accessibility tree:\n" + ("\n".join(lines) or "(empty)"),
+        nodes = page.evaluate(_AXTREE_JS)
+        lines = "\n".join(
+            f'[{n["index"]}] {n["role"]} "{n["name"]}"'
+            + ("  (disabled)" if n["disabled"] else "") for n in nodes)
+        return ("Accessibility tree:\n" + (lines or "(empty)"),
                 _INDEXED_SPEC, nodes)
 
     if mode == "rawhtml":
@@ -252,23 +292,7 @@ def act(page, a, mode, axnodes, site_root):
             page.keyboard.press("Enter")
         return
 
-    if mode == "axtree":
-        i = a.get("index")
-        if not isinstance(i, int) or not axnodes or i >= len(axnodes):
-            raise ValueError(f"axtree index {i!r} out of range")
-        role, name = axnodes[i]
-        loc = page.get_by_role(role, name=name, exact=False).first
-        LA.human_move_click(page, loc)
-        if kind == "type":
-            for ch in str(a.get("text", "")):
-                loc.type(ch, delay=random.randint(40, 130))
-            try:
-                loc.press("Enter")
-            except Exception:
-                pass
-        return
-
-    # dom, rawhtml, som all address elements by data-llm-idx
+    # dom, axtree, rawhtml, som all address elements by data-llm-idx
     return LA.do_action(page, a, site_root)
 
 
@@ -318,6 +342,87 @@ def ask(client, model, system, user_content):
                   + (f" :: {msg[:110]}" if attempt == 0 else ""))
             time.sleep(31 if is_rate else 5)
     return None
+
+
+_ALIASES = {"read": "wait", "browse": "wait", "look": "wait", "observe": "wait",
+            "navigate": "goto", "open": "click", "press": "click",
+            "input": "type", "write": "type", "enter": "type"}
+
+
+def parse_tolerant(raw):
+    """Accept what a real agent framework would accept.
+
+    llm_agent's parser is deliberately strict and is left untouched, so the
+    existing corpus keeps its semantics. Here the strictness would be measuring
+    the wrong thing: if `som` returns [{'action': 'goto'}] -- a list, with
+    Python quotes -- and that scores as a failed step, the number reflects my
+    parser, not the architecture. Every production agent tolerates this.
+
+    Returns (action_dict_or_None, note) where note names the leniency used, so
+    the log shows how often a mode needed rescuing.
+    """
+    import ast
+    import json as _json
+    import re as _re
+    if not raw:
+        return None, "empty"
+    s = raw.strip()
+    if s.startswith("```"):
+        s = s.strip("`")
+        i = s.find("{")
+        j = s.find("[")
+        cut = min(x for x in (i, j) if x != -1) if (i != -1 or j != -1) else 0
+        s = s[cut:]
+
+    obj, note = None, ""
+    # Try the outermost {...} or [...] with JSON first, then Python literals
+    # (single quotes / True / None), which small models emit constantly.
+    for pat in (r"\{.*\}", r"\[.*\]"):
+        m = _re.search(pat, s, _re.S)
+        if not m:
+            continue
+        for loader, tag in ((_json.loads, ""), (ast.literal_eval, "py-literal")):
+            try:
+                obj = loader(m.group(0))
+                note = tag
+                break
+            except Exception:
+                continue
+        if obj is not None:
+            break
+    if obj is None:
+        return None, "unparseable"
+
+    if isinstance(obj, list):
+        # A list of steps: take the first. Agents that plan several actions at
+        # once are common; executing the head and re-observing is the standard
+        # way frameworks handle it.
+        obj = next((o for o in obj if isinstance(o, dict)), None)
+        note = (note + "+list").strip("+")
+        if obj is None:
+            return None, "list-without-object"
+    if not isinstance(obj, dict):
+        return None, "not-an-object"
+
+    # Some models put the verb under "type" (colliding with the type action) or
+    # omit it entirely while supplying an obviously-typed field.
+    act_v = obj.get("action")
+    if not isinstance(act_v, str):
+        act_v = obj.get("act") or obj.get("command") or obj.get("type") or ""
+        note = (note + "+verb-key").strip("+")
+    act_v = str(act_v).strip().lower()
+    if "|" in act_v:                       # "click|goto" -- undecided model
+        act_v = act_v.split("|")[0]
+        note = (note + "+alternatives").strip("+")
+    if act_v in _ALIASES:
+        note = (note + f"+alias:{act_v}").strip("+")
+        act_v = _ALIASES[act_v]
+    obj["action"] = act_v
+
+    for k in ("index", "x", "y"):
+        if k in obj and isinstance(obj[k], str) and obj[k].strip().lstrip("-").isdigit():
+            obj[k] = int(obj[k].strip())
+    return obj, note
 
 
 def write_health(sid, harness, model, used, budget, model_dead):
@@ -392,7 +497,7 @@ def main():
             print("[percept] WARNING: could not confirm login")
 
         history = []
-        fails = 0
+        fails = bad = lenient = 0
         for step in range(args.steps):
             used = step + 1
             try:
@@ -420,14 +525,18 @@ def main():
                 continue
             fails = 0
 
-            a = LA.parse_action(raw)
+            a, note = parse_tolerant(raw)
             if not a:
-                print(f"[{step}] unparseable reply: {(raw or '')[:110]}")
+                bad += 1
+                print(f"[{step}] unparseable ({note}): {(raw or '')[:100]}")
                 continue
+            if note:
+                lenient += 1
             where = (f"({a.get('x')},{a.get('y')})" if args.mode == "vision"
                      else f"idx={a.get('index')}")
             print(f"[{step}] {a.get('action')} {where} "
-                  f"{str(a.get('reasoning',''))[:56]}", flush=True)
+                  f"{str(a.get('reasoning',''))[:52]}"
+                  + (f"   [{note}]" if note else ""), flush=True)
             if a.get("action") == "done":
                 break
             try:
@@ -452,6 +561,7 @@ def main():
               else "DEGRADED (stalls)" if s["stalls"] else "clean")
     print(f"[percept] done. mode={args.mode} steps_used={used}/{args.steps} "
           f"calls={s['calls']} empty={s['empty']} stalls={s['stalls']} "
+          f"unparseable={bad} lenient={lenient} "
           f"sid={(sid or 'UNKNOWN')[:12]} -> {health}")
     if model_dead:
         raise SystemExit(4)
