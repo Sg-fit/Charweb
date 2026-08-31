@@ -221,6 +221,13 @@ def main():
                          "the way that model browses -- it browsed the way the "
                          "plumbing let it -- and pooling those with clean ones "
                          "measures the pipeline as much as the agent.")
+    ap.add_argument("--require-health", action="store_true",
+                    help="drop sessions that have NO row in the health file. "
+                         "Absence normally means 'collected before health "
+                         "tracking existed', so it is tolerated -- but in a run "
+                         "that should have health for every session, a missing "
+                         "row means the collector died before writing one, "
+                         "which is the opposite of a reason to trust it.")
     ap.add_argument("--max-empty-rate", type=float, default=0.0,
                     help="with --health-csv, tolerate up to this fraction of "
                          "empty replies (0.0 = require perfectly clean)")
@@ -263,7 +270,11 @@ def main():
                 health[uid] = ok
         bad = sum(1 for v in health.values() if not v)
         print(f"health file: {len(health)} sessions, {bad} marked degraded "
-              f"(max_empty_rate={args.max_empty_rate})")
+              f"(max_empty_rate={args.max_empty_rate})"
+              + ("  [--require-health: sessions with no row are DROPPED]"
+                 if args.require_health else
+                 "  [sessions with no row are KEPT -- pass --require-health "
+                 "to drop them]"))
 
     wanted_runs = ({r.strip() for r in args.run_id.split(",") if r.strip()}
                    if args.run_id else None)
@@ -283,7 +294,9 @@ def main():
                 if not s.harness and not args.include_unlabelled:
                     skipped_unlabelled += 1
                     continue
-                if health.get(s.session_uid) is False:
+                verdict = health.get(s.session_uid)
+                if verdict is False or (args.require_health and args.health_csv
+                                        and verdict is None):
                     skipped_degraded += 1
                     continue
                 rows = db.session.scalars(
@@ -315,7 +328,7 @@ def main():
 
     print(f"wrote {written} sessions -> {args.out}")
     print(f"skipped: {skipped_short} too-short, {skipped_unlabelled} unlabelled"
-          + (f", {skipped_degraded} degraded (empty model replies)" if skipped_degraded else ""))
+          + (f", {skipped_degraded} degraded/uncertified" if skipped_degraded else ""))
 
     if written == 0:
         # An empty export used to sail on silently and only blow up two scripts
