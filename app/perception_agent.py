@@ -336,6 +336,17 @@ def ask(client, model, system, user_content):
             if not (is_rate or is_tran):
                 print(f"[percept] model error: {msg[:180]}")
                 return LA.PERMANENT_FAILURE
+            # A DAILY cap is not a transient blip: waiting 31s changes nothing,
+            # and an overnight batch would spend hours sleeping through six
+            # retries per step while collecting nothing. Exit 3 is the code
+            # run_interleaved reads as "stop the batch cleanly".
+            if is_rate and any(k in low for k in (
+                    "per day", "requests per day", "tokens per day",
+                    " rpd", " tpd", "daily", "quota")):
+                print("[percept] DAILY quota reached for this key/model -- "
+                      "waiting will not help. Resume after it resets or switch "
+                      "provider/key.")
+                raise SystemExit(3)
             LA.STATS["rate_limited" if is_rate else "transient"] += 1
             print(f"[percept] {'rate limited' if is_rate else 'transient'}; "
                   f"retry (attempt {attempt+1}/6)"
