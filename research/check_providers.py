@@ -317,9 +317,28 @@ def main():
         # A pasted placeholder is the single most common cause of a whole
         # provider "failing": every call comes back 403 and the key looks fine
         # in the log because it is never printed.
-        if len(key) < 20 or key.startswith("<") or key.endswith("..."):
-            print("  SKIP: that does not look like a real key (too short or a "
-                  "placeholder). Re-export it and re-run.")
+        # A length check alone is not enough: "paste-your-nvidia-key" is 21
+        # characters and sailed straight through, producing failures that were
+        # read as an NVIDIA outage. Check the provider's actual key prefix and
+        # the words placeholders are made of.
+        PREFIXES = {"nvidia": ("nvapi-",), "groq": ("gsk_",),
+                    "gemini": ("AIza", "AQ."), "cerebras": ("csk-",),
+                    "openrouter": ("sk-or-",), "openai": ("sk-",)}
+        exp = PREFIXES.get(p)
+        looks_fake = (
+            len(key) < 20
+            or key.startswith("<") or key.endswith("...")
+            or any(w in key.lower() for w in
+                   ("paste", "your-", "yourkey", "-here", "xxxx", "example",
+                    "replace", "todo"))
+            or (exp and not key.startswith(exp)))
+        if looks_fake:
+            print(f"  SKIP: that is not a real {p} key (len {len(key)}, "
+                  f"starts {key[:8]!r}"
+                  + (f", expected {' or '.join(exp)}" if exp else "") + ").")
+            print("  A placeholder pasted literally produces auth failures that "
+                  "look exactly like a provider outage. Fix the key before "
+                  "concluding anything about the provider.")
             continue
         cl = client_for(p, key)
         catalogue = list_models(cl)
