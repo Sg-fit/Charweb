@@ -436,7 +436,8 @@ def parse_tolerant(raw):
     return obj, note
 
 
-def write_health(sid, harness, model, used, budget, model_dead):
+def write_health(sid, harness, model, used, budget, model_dead,
+                 unparseable=0, lenient=0):
     import csv
     calls = LA.STATS["calls"]
     row = {
@@ -449,6 +450,13 @@ def write_health(sid, harness, model, used, budget, model_dead):
         "recovered": LA.STATS["recovered"], "stalls": LA.STATS["stalls"],
         "empty_rate": f"{(LA.STATS['empty']/calls if calls else 0):.3f}",
         "max_tokens": LA.MAX_TOKENS, "model_dead": int(bool(model_dead)),
+        # Parse quality per session. This is the confound the perception design
+        # is most exposed to: if the model holds the action schema in one mode
+        # and fumbles it in another, that difference is MODEL weakness showing
+        # up unevenly, not an architecture signature. Recording it per session
+        # makes that testable instead of anecdotal.
+        "unparseable": unparseable, "lenient": lenient,
+        "parse_ok_rate": f"{(1 - unparseable/calls) if calls else 0:.3f}",
         "clean": int(LA.STATS["empty"] == 0 and LA.STATS["stalls"] == 0
                      and LA.STATS["rate_limited"] == 0 and not model_dead),
     }
@@ -563,7 +571,8 @@ def main():
         sid = LA.session_uid_from_cookies(ctx)
         browser.close()
 
-    write_health(sid, harness, model, used, args.steps, model_dead)
+    write_health(sid, harness, model, used, args.steps, model_dead,
+                 unparseable=bad, lenient=lenient)
     s = LA.STATS
     health = ("DEAD (model unusable)" if model_dead
               else f"DEGRADED (empty {s['empty']}/{s['calls']})"
