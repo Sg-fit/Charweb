@@ -38,8 +38,20 @@ ROOT = Path(__file__).resolve().parent.parent
 # Each entry: label -> (argv, extra env). The label is only for the manifest;
 # the harness/model labels recorded on the server are set by the scripts
 # themselves, exactly as in a normal run.
-def build_arms(url, include_llm, llm_models, no_scripted=False):
+def build_arms(url, include_llm, llm_models, no_scripted=False,
+               perception_modes=()):
     arms = []
+    # Perception modes: one arm per (mode, model). The MODEL is held constant
+    # across modes on purpose -- the variable under test is how the agent sees
+    # the page, so anything else varying would confound it.
+    for mode in perception_modes:
+        for model in llm_models:
+            arms.append((
+                f"percept:{mode}",
+                [sys.executable, str(ROOT / "app" / "perception_agent.py"),
+                 "--mode", mode, "--url", url, "--username", "ilv", "--headless"],
+                {"CHARWEB_LLM_MODEL": model},
+            ))
     for profile in () if no_scripted else ("plain", "noisy", "humanlike"):
         arms.append((
             f"scripted_{profile}",
@@ -87,6 +99,12 @@ def main():
     ap.add_argument("--llm-models",
                     default="openai/gpt-oss-20b,meta/llama-3.1-8b-instruct",
                     help="comma-separated models for the LLM arm")
+    ap.add_argument("--perception", default=None,
+                    help="comma-separated perception modes to rotate: "
+                         "dom,axtree,rawhtml,som,vision. Each becomes its own "
+                         "harness level (percept_<mode>). som and vision send "
+                         "screenshots, so --llm-models must name a "
+                         "vision-capable model.")
     ap.add_argument("--only", default=None,
                     help="comma-separated subset of arm labels to run")
     ap.add_argument("--manifest", default="interleaved_manifest.csv")
@@ -116,7 +134,10 @@ def main():
 
     arms = build_arms(args.url, args.include_llm,
                       [m.strip() for m in args.llm_models.split(",") if m.strip()],
-                      no_scripted=args.no_scripted)
+                      no_scripted=args.no_scripted,
+                      perception_modes=[m.strip() for m in
+                                        (args.perception or "").split(",")
+                                        if m.strip()])
     # One arm per (harness, condition) pair, so instruction conditions are
     # interleaved in time too. Collecting conditions in blocks would rebuild
     # exactly the confound the interleaving exists to remove -- on a new axis.
@@ -129,7 +150,7 @@ def main():
     if not arms:
         sys.exit("no arms selected")
 
-    if args.include_llm:
+    if args.include_llm or args.perception:
         missing = []
         if not (os.environ.get("CHARWEB_LLM_KEY") or os.environ.get("OPENAI_API_KEY")):
             missing.append("CHARWEB_LLM_KEY")
@@ -139,7 +160,8 @@ def main():
             # Checked here rather than discovered one dead session at a time:
             # an unset key makes every LLM arm exit instantly, which silently
             # turns an interleaved run back into a scripted-only one.
-            sys.exit("--include-llm needs these set in THIS shell before "
+            sys.exit("--include-llm / --perception need these set in THIS "
+                     "shell before "
                      "launching:\n  " + "\n  ".join(f"export {m}" for m in missing) +
                      "\n\nNote they must be exported in the same shell as the "
                      "nohup command -- a previous ssh session's exports are gone.")
