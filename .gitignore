@@ -42,3 +42,28 @@ events.csv
 !research/m3_results.txt
 !research/m3_robustness_results.txt
 !research/m3_task_transfer_results.txt
+
+# --- backups, hand-labeling working files, scratch --------------------------
+# backups/ holds timestamped export tarballs and analysis bundles (tens of MB,
+# regenerable from the server). charweb_analysis_*.tar.gz is the same kind of
+# artefact written at the repo root.
+backups/
+charweb_analysis_*.tar.gz
+
+# SQLite backups. `*.db` above does not match `app.db.bak.<ts>` or
+# `app.db.old_orphaned_chain`, and these contain the user table (emails,
+# password hashes). hand_label_key.csv holds the auto-labeler's answers: it
+# must never sit next to the blind sheet in a commit.
+*.db.bak*
+*.db.old_*
+instance/
+hand_label_key.csv
+
+# Hand-labeling sheets are per-annotator working data, and diag.txt is
+# one-off server diagnostic output. The sampler/scorer scripts are tracked.
+hand_label_sheet.csv
+overlap_sheet.csv
+diag.txt
+
+# git bundles (VPS -> laptop transfers)
+*.bundle
