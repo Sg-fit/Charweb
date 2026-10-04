@@ -67,9 +67,27 @@ if not app.debug:
         except Exception:
             pass
     
-    if not os.path.exists('logs'):
-        os.mkdir('logs')
-    file_handler = RotatingFileHandler('logs/Charweb.log', maxBytes=10240,
+    # The analysis tooling imports this app as root, which initialises this
+    # same logger. RotatingFileHandler rotates at 10 KB, so a root-run script
+    # eventually recreates logs/Charweb.log as root:root -- after which the
+    # charweb service cannot open it, dies at startup, and systemd restarts it
+    # forever. That took the site down from 2026-09-23 to 2026-10-03 and the
+    # only symptom was collection runs quietly recording nothing.
+    #
+    # Two defences: analysis sets CHARWEB_LOG_DIR elsewhere, and an unwritable
+    # log can never kill the service.
+    log_dir = os.environ.get('CHARWEB_LOG_DIR', 'logs')
+    try:
+        os.makedirs(log_dir, exist_ok=True)
+        with open(os.path.join(log_dir, 'Charweb.log'), 'a'):
+            pass
+    except OSError as _e:
+        import tempfile as _tf
+        log_dir = _tf.mkdtemp(prefix='charweb-log-')
+        print(f"[charweb] '{os.environ.get('CHARWEB_LOG_DIR', 'logs')}' not "
+              f"writable ({_e}); logging to {log_dir} instead")
+    file_handler = RotatingFileHandler(os.path.join(log_dir, 'Charweb.log'),
+                                       maxBytes=10240,
         backupCount=10)
     file_handler.setFormatter(logging.Formatter(
         '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'))

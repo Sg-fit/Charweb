@@ -39,7 +39,7 @@ ROOT = Path(__file__).resolve().parent.parent
 # the harness/model labels recorded on the server are set by the scripts
 # themselves, exactly as in a normal run.
 def build_arms(url, include_llm, llm_models, no_scripted=False,
-               perception_modes=()):
+               perception_modes=(), adv_conditions=("clean",), mimicry=False):
     arms = []
     # Perception modes: one arm per (mode, model). The MODEL is held constant
     # across modes on purpose -- the variable under test is how the agent sees
@@ -67,6 +67,41 @@ def build_arms(url, include_llm, llm_models, no_scripted=False,
                  "--url", url, "--username", "ilv", "--headless"],
                 {"CHARWEB_LLM_MODEL": model},
             ))
+        # E4: each model also runs an arm that imitates the OTHER one. The
+        # clean arm of the same model, collected in the same rounds, is the
+        # control -- so any difference is the mimicry and not the day.
+        if mimicry and len(llm_models) == 2:
+            for model in llm_models:
+                target = next(m for m in llm_models if m != model)
+                arms.append((
+                    f"llm:{model}|mimic->{target}",
+                    [sys.executable, str(ROOT / "app" / "llm_agent.py"),
+                     "--url", url, "--username", "ilv", "--headless"],
+                    {"CHARWEB_LLM_MODEL": model,
+                     "CHARWEB_MIMICRY_TARGET": target,
+                     "CHARWEB_ADV_CONDITION": "mimicry"},
+                ))
+        elif mimicry:
+            sys.exit("--mimicry needs exactly two --llm-models")
+
+    # Phase 2: expand every arm across the adversarial conditions, so clean and
+    # attacked sessions alternate WITHIN each round rather than being collected
+    # as separate batches. Collecting them separately would leave any temporal
+    # drift -- site content, server load, provider latency -- perfectly
+    # confounded with the attack, which is the same mistake interleaving was
+    # introduced to fix for the harness axis.
+    if tuple(adv_conditions) != ("clean",):
+        expanded = []
+        for label, argv, extra in arms:
+            for adv in adv_conditions:
+                e = dict(extra)
+                e["CHARWEB_ADV_CONDITION"] = adv
+                # 'clean' must NOT set CHARWEB_TAMPER at all -- an empty string
+                # would still be truthy in some shells and silently arm it.
+                if adv != "clean":
+                    e["CHARWEB_TAMPER"] = adv
+                expanded.append((f"{label}|{adv}", argv, e))
+        arms = expanded
     return arms
 
 
@@ -107,6 +142,18 @@ def main():
                          "vision-capable model.")
     ap.add_argument("--only", default=None,
                     help="comma-separated subset of arm labels to run")
+    ap.add_argument("--mimicry", action="store_true",
+                    help="add one arm per model that imitates the other "
+                         "(E4). Requires exactly two --llm-models. Tagged "
+                         "adversarial_condition=mimicry with mimicry_target "
+                         "set, and interleaved against the clean arms.")
+    ap.add_argument("--adv-condition", default="clean",
+                    help="comma-separated adversarial conditions to interleave, "
+                         "e.g. 'clean,forge_human_ordered'. Each becomes its own "
+                         "arm inside every round, so clean and attacked sessions "
+                         "share identical temporal conditions. Anything other "
+                         "than 'clean' is also passed to the browser as "
+                         "CHARWEB_TAMPER and armed in track.js.")
     ap.add_argument("--manifest", default="interleaved_manifest.csv")
     ap.add_argument("--shuffle", action="store_true", default=True,
                     help="shuffle arm order within each round (default on)")
@@ -137,7 +184,10 @@ def main():
                       no_scripted=args.no_scripted,
                       perception_modes=[m.strip() for m in
                                         (args.perception or "").split(",")
-                                        if m.strip()])
+                                        if m.strip()],
+                      adv_conditions=[a.strip() for a in
+                                      args.adv_condition.split(",") if a.strip()],
+                      mimicry=args.mimicry)
     # One arm per (harness, condition) pair, so instruction conditions are
     # interleaved in time too. Collecting conditions in blocks would rebuild
     # exactly the confound the interleaving exists to remove -- on a new axis.
@@ -208,6 +258,10 @@ def main():
             # until the process exits and flushes.
             env["PYTHONUNBUFFERED"] = "1"
             env["CHARWEB_RUN_ID"] = run_id
+            env["CHARWEB_URL"] = args.url
+            env.pop("CHARWEB_TAMPER", None)   # only an arm may arm it
+            env.pop("CHARWEB_ADV_CONDITION", None)
+            env.pop("CHARWEB_MIMICRY_TARGET", None)  # only an arm may set it
             env["CHARWEB_INSTRUCTION"] = conditions[0]
             env.update(extra)   # per-arm condition, when rotating, wins here
             # The collectors force their own harness/model labels, so nothing

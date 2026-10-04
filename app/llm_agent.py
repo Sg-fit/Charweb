@@ -59,6 +59,49 @@ def build_run_headers():
     }
     return {h: os.environ[e] for e, h in env_to_hdr.items() if os.environ.get(e)}
 
+
+# NOTE: duplicates app/run_labels.py. llm_agent.py is imported as a module by
+# perception_agent.py (as LA), which calls LA.apply_run_context, so the helper
+# must exist in THIS namespace. Kept local rather than imported to avoid the
+# sys.path juggling scripted_agent.py needs; run_labels.py is the source of
+# truth if the two ever diverge.
+def build_run_cookies(url):
+    """Same labels as cookies. Headers are not attached to sendBeacon and are
+    unreliable on the page-teardown keepalive flush, so a fast-navigating agent
+    whose events all flush on page-hide would be recorded unlabelled."""
+    env_to_cookie = {
+        "CHARWEB_RUN_ID": "cw_run_id",
+        "CHARWEB_HARNESS": "cw_harness",
+        "CHARWEB_MODEL": "cw_model",
+        "CHARWEB_INSTRUCTION": "cw_instruction",
+        "CHARWEB_ADV_CONDITION": "cw_adv_condition",
+        "CHARWEB_MIMICRY_TARGET": "cw_mimicry_target",
+    }
+    return [{"name": c, "value": os.environ[e], "url": url}
+            for e, c in env_to_cookie.items() if os.environ.get(e)]
+
+
+def apply_run_context(context, url=None):
+    """Attach attribution labels and, when armed, the Phase-2 tamper layer.
+
+    CHARWEB_TAMPER is injected with add_init_script so window.__CHARWEB_TAMPER
+    is defined BEFORE track.js parses. Unset during clean collection, so the
+    control group is untouched by construction.
+    """
+    context.set_extra_http_headers(build_run_headers())
+    target = url or os.environ.get("CHARWEB_URL", "https://charweb.net")
+    cookies = build_run_cookies(target)
+    if cookies:
+        try:
+            context.add_cookies(cookies)
+        except Exception as e:
+            print(f"[llm_agent] cookie labels skipped: {e}")
+    mode = os.environ.get("CHARWEB_TAMPER")
+    if mode:
+        context.add_init_script(f"window.__CHARWEB_TAMPER = {json.dumps(mode)};")
+        print(f"[llm_agent] TAMPER ACTIVE: {mode}")
+    return context
+
 # OpenAI-compatible base URLs. Override with CHARWEB_LLM_BASE_URL if needed.
 PROVIDERS = {
     "gemini":     "https://generativelanguage.googleapis.com/v1beta/openai/",
@@ -138,6 +181,8 @@ EXTRACT_JS = """
     return 2;                                   // plain links
   };
   vis.sort((a, b) => rank(a) - rank(b));
+  for (const e of document.querySelectorAll('[data-llm-idx]'))
+    e.removeAttribute('data-llm-idx');
   const out = []; let i = 0;
   for (const el of vis) {
     const label = (el.innerText || el.value || el.getAttribute('placeholder') ||
@@ -212,7 +257,7 @@ PERMANENT_FAILURE = object()
 # summary so a batch's logs can be graded, and so a later analysis can control
 # for stalls the way §3.3 of the M3 write-up controls for session length.
 STATS = {"calls": 0, "rate_limited": 0, "transient": 0, "stalls": 0,
-         "empty": 0, "recovered": 0}
+         "empty": 0, "recovered": 0, "action_timeouts": 0}
 
 # Reasoning models spend this budget on chain-of-thought before the visible
 # answer begins, so a value tuned for a plain chat model returns empty content
@@ -228,6 +273,56 @@ MAX_TOKENS = int(os.environ.get("CHARWEB_MAX_TOKENS", "2500"))
 # is what makes "exclude every degraded session" possible at analysis time
 # instead of hoping the degradation averaged out.
 HEALTH_CSV = os.environ.get("CHARWEB_HEALTH_CSV", "collection_health.csv")
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 / E4: behavioural mimicry.
+#
+# E3 established that forging TELEMETRY does not move model attribution -- the
+# classifier falls back on what the agent DOES. So mimicry has to change
+# behaviour, which is why these knobs act on the harness's real timing and on
+# the instruction, never on the reported values.
+#
+# Targets are per-model medians of the Phase-1 certified clean data
+# (modelaxis_v5.csv, n=86):
+#
+#                        llama-3.2-11b   gpt-oss-20b
+#   timing_kd_mean            485 ms        1941 ms
+#   timing_think_mean        5676 ms        9678 ms
+#   action_pageload_pct        9.47 %        18.18 %
+#   struct_events_per_url      18.94          15.08
+#
+# CRITICAL ASYMMETRY (H7): a harness can always ADD delay, never remove it.
+# llama can slow to gpt-oss's latency profile; gpt-oss cannot speed up to
+# llama's, because that wait is inference, not policy. Mimicry of
+# latency-carried features should therefore work in ONE DIRECTION ONLY. The
+# gpt-oss -> llama arm is collected anyway and is expected to fail on timing
+# while still moving navigation. That failure is the result, not a bug -- do
+# not "fix" it by faking timestamps, which would just make it E3 again.
+MIMIC_PROFILES = {
+    "openai/gpt-oss-20b": {
+        "think_ms": 4000, "type_ms": (300, 700),
+        # pageload_pct 18.18 vs 9.47 -> navigate roughly twice as often.
+        # Phrased as guidance, not a harness override: navigation is a decision
+        # the agent makes, and forcing it would be imitation of the telemetry
+        # rather than of the behaviour.
+        "nav_hint": ("Work in short visits: after about 8 actions on a page, "
+                     "move to a different page rather than continuing there."),
+    },
+    "meta/llama-3.2-11b-vision-instruct": {
+        "think_ms": 0, "type_ms": (40, 130),
+        "nav_hint": ("Work in long visits: stay on a page and do as much as you "
+                     "can there before navigating elsewhere."),
+    },
+}
+MIMIC_TARGET = os.environ.get("CHARWEB_MIMICRY_TARGET") or None
+_MIMIC = MIMIC_PROFILES.get(MIMIC_TARGET, {}) if MIMIC_TARGET else {}
+MIMIC_THINK_MS = int(_MIMIC.get("think_ms", 0))
+MIMIC_TYPE_MS = tuple(_MIMIC.get("type_ms", (40, 130)))
+MIMIC_NAV_HINT = _MIMIC.get("nav_hint", "")
+if MIMIC_TARGET:
+    print(f"[llm_agent] MIMICRY TARGET: {MIMIC_TARGET} "
+          f"(+{MIMIC_THINK_MS}ms think, type {MIMIC_TYPE_MS[0]}-{MIMIC_TYPE_MS[1]}ms/char)")
 
 # Minimum seconds between model calls. Providers meter per minute (NVIDIA is
 # 40 RPM), and an unpaced agent fires as fast as the site responds, so a LONGER
@@ -302,6 +397,7 @@ def write_health(session_uid, args, model, used, model_dead=False):
         "steps_used": used, "steps_budget": args.steps,
         "calls": STATS["calls"], "rate_limited": STATS["rate_limited"],
         "transient": STATS["transient"], "empty": STATS["empty"],
+        "action_timeouts": STATS["action_timeouts"],
         "recovered": STATS["recovered"], "stalls": STATS["stalls"],
         "empty_rate": f"{empty_rate:.3f}",
         "max_tokens": MAX_TOKENS,
@@ -315,11 +411,38 @@ def write_health(session_uid, args, model, used, model_dead=False):
         # when the model answered every time it was asked; anything else means
         # its behaviour was shaped by the plumbing as well as by the model.
         "clean": int(STATS["empty"] == 0 and STATS["stalls"] == 0
-                     and STATS["rate_limited"] == 0 and not model_dead),
+                     and STATS["rate_limited"] == 0
+                     # 503 ResourceExhausted retries sleep 5s and land inside
+                     # inter-event gaps exactly like 429 retries do. Omitting
+                     # this certified poolside/laguna-xs as clean while 13 of
+                     # its 43 calls were retries.
+                     and STATS["transient"] == 0
+                     and STATS["action_timeouts"] <= 0.05 * max(used, 1)
+                     and not model_dead),
     }
     try:
+        # A header is written once and never revisited, so when this dict
+        # gains a field every later row silently misaligns against it --
+        # DictReader then maps values onto the WRONG column names. That has now
+        # happened three times in this project (transient, unparseable->clean,
+        # action_timeouts) and each time it produced a confidently wrong
+        # certification. Validate the header, or start a new file.
         new = not os.path.exists(HEALTH_CSV)
-        with open(HEALTH_CSV, "a", newline="", encoding="utf-8") as fh:
+        if not new:
+            with open(HEALTH_CSV, newline="", encoding="utf-8") as fh:
+                hdr = next(_csv.reader(fh), [])
+            if hdr != list(row):
+                import time as _t
+                alt = (HEALTH_CSV.rsplit(".", 1)[0]
+                       + f".schema{int(_t.time())}.csv")
+                print(f"[llm_agent] HEALTH SCHEMA CHANGED -- {HEALTH_CSV} "
+                      f"header does not match this row. Writing {alt} instead.")
+                HEALTH_TARGET, new = alt, True
+            else:
+                HEALTH_TARGET = HEALTH_CSV
+        else:
+            HEALTH_TARGET = HEALTH_CSV
+        with open(HEALTH_TARGET, "a", newline="", encoding="utf-8") as fh:
             w = _csv.DictWriter(fh, fieldnames=list(row))
             if new:
                 w.writeheader()
@@ -479,7 +602,7 @@ def do_action(page, act, site_root):
         except Exception:
             pass
         for ch in str(act.get("text", "")):
-            loc.type(ch, delay=random.randint(40, 130))
+            loc.type(ch, delay=random.randint(*MIMIC_TYPE_MS))
         try:
             loc.press("Enter")
         except Exception:
@@ -558,6 +681,10 @@ def run():
 
     instr_name = os.environ.get("CHARWEB_INSTRUCTION", "free_explore")
     instruction = for_llm_agent(instr_name)
+    if MIMIC_NAV_HINT:
+        # Appended, not substituted: the TASK must stay identical to the clean
+        # arm or the comparison measures a different task rather than mimicry.
+        instruction = instruction + "\n\n" + MIMIC_NAV_HINT
 
     # Force the labels this harness owns, so a stale CHARWEB_HARNESS/CHARWEB_MODEL
     # left in the shell from a previous run (PowerShell keeps $env: between
@@ -572,7 +699,7 @@ def run():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=args.headless)
         context = browser.new_context(viewport={"width": 1280, "height": 800})
-        context.set_extra_http_headers(build_run_headers())
+        apply_run_context(context)
         page = context.new_page()
 
         # Unique account per run so registration never collides with a prior run.
@@ -627,11 +754,12 @@ def run():
             try:
                 do_action(page, act, site_root)
             except PWTimeout:
+                STATS["action_timeouts"] += 1
                 print(f"[{step}] action timed out")
             except Exception as e:
                 print(f"[{step}] action error: {e}")
             history.append({k: act.get(k) for k in ("action", "index", "url") if act.get(k) is not None})
-            time.sleep(random.uniform(0.6, 2.0))  # human-like dwell
+            time.sleep(random.uniform(0.6, 2.0) + MIMIC_THINK_MS / 1000.0)  # human-like dwell (+mimicry)
 
         time.sleep(3)  # let the last track.js batch flush
         # Read the id BEFORE closing the browser -- the context is gone after.

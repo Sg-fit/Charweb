@@ -33,9 +33,9 @@ import time
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 try:
-    from run_labels import build_run_headers, build_run_cookies
+    from run_labels import apply_run_context, build_run_headers, build_run_cookies
 except ImportError:
-    from app.run_labels import build_run_headers, build_run_cookies
+    from app.run_labels import apply_run_context, build_run_headers, build_run_cookies
 
 PASSWORD = "ScriptedPass123!"
 
@@ -283,7 +283,7 @@ def main():
             print(f"[{i+1}/{args.n}] {uname}", flush=True)
             browser = pw.chromium.launch(headless=args.headless)
             context = browser.new_context(viewport={"width": 1280, "height": 800})
-            context.set_extra_http_headers(build_run_headers())
+            apply_run_context(context)
             cookies = build_run_cookies(site)
             if cookies:
                 context.add_cookies(cookies)

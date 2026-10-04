@@ -172,6 +172,7 @@ Usage
 Requirements: pip install pandas (plus, for DB mode, this project's own Flask/SQLAlchemy deps)
 """
 import argparse
+import os
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -228,7 +229,6 @@ RESOLUTION_KINDS = ('direct', 'url', 'bracketed', 'carry_forward',
 # are added -- just make sure a new entry doesn't overlap an existing one.
 DIRECT_TARGET_RULES = [
     ('profile_edit', {'about_me'}),
-    ('search', {'q'}),
     ('feed_browse', {'post'}),
     ('timed_dungeon', {
         'mission-timer', 'timer-display', 'start-timer', 'dungeon-screen',
@@ -262,9 +262,8 @@ DIRECT_TARGET_PREFIXES = [
 # unlabeled rather than be forced into a category.
 DIRECT_URL_RULES = [
     ('profile_edit', {'/edit_profile'}),
-    ('search', {'/explore'}),
-    ('feed_browse', {'/', '/home', '/all_users'}),
-    ('timed_dungeon', {'/daily', '/ranking'}),
+    ('feed_browse', {'/', '/home', '/all_users', '/explore', '/team'}),
+    ('timed_dungeon', {'/daily', '/ranking', '/rankings'}),
     ('signup_login', {'/login', '/register', '/reset_password_request',
                        '/logout'}),
     ('chat', {'/chat'}),
@@ -473,6 +472,13 @@ def label_session_events(events, carry_window_s=None, use_url=True,
     """events: RawEvent tuples for ONE session, already ordered by timestamp."""
     if carry_window_s is None:
         carry_window_s = CARRY_FORWARD_SECONDS
+    # Hand validation 2026-09-06: the carry-forward fill scored 0/20 against
+    # blind human labels, while abstaining (resolved_via='unknown') scored
+    # 20/20 -- because abstaining is never wrong. A window of 0 means no gap
+    # can ever be filled, so an event unresolved by a direct or URL rule stays
+    # unknown. Set CHARWEB_CARRY_FORWARD=1 to restore the old behaviour.
+    if os.environ.get("CHARWEB_CARRY_FORWARD", "0") == "0":
+        carry_window_s = 0
 
     base = anchor_labels(events, use_url=use_url)
     filled = fill_from_anchors(events, base, carry_window_s,

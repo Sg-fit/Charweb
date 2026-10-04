@@ -176,6 +176,8 @@ _RAWHTML_JS = """
 _SOM_JS = """
 () => {
   for (const old of document.querySelectorAll('.__som_badge')) old.remove();
+  for (const e of document.querySelectorAll('[data-llm-idx]'))
+    e.removeAttribute('data-llm-idx');
   let i = 0;
   for (const el of document.querySelectorAll(
         'a,button,input,textarea,select,[role=button]')) {
@@ -404,7 +406,13 @@ def parse_tolerant(raw):
     if obj is None:
         return None, "unparseable"
 
-    if isinstance(obj, list):
+    # A tuple, not a list, is the common case and the one that was being
+    # missed: the greedy {...} pattern matches "{...}, {...}" across a
+    # multi-action plan, and ast.literal_eval reads that as a valid Python
+    # TUPLE. isinstance(obj, list) was False, so the unwrapping below never
+    # ran and every planned step scored as unparseable -- a property of this
+    # parser, not of the model.
+    if isinstance(obj, (list, tuple)):
         # A list of steps: take the first. Agents that plan several actions at
         # once are common; executing the head and re-observing is the standard
         # way frameworks handle it.
@@ -436,6 +444,10 @@ def parse_tolerant(raw):
     return obj, note
 
 
+PERCEPT_HEALTH_CSV = os.environ.get("CHARWEB_PERCEPT_HEALTH_CSV",
+                                    "percept_health.csv")
+
+
 def write_health(sid, harness, model, used, budget, model_dead,
                  unparseable=0, lenient=0):
     import csv
@@ -447,6 +459,7 @@ def write_health(sid, harness, model, used, budget, model_dead,
         "steps_used": used, "steps_budget": budget, "calls": calls,
         "rate_limited": LA.STATS["rate_limited"],
         "transient": LA.STATS["transient"], "empty": LA.STATS["empty"],
+        "action_timeouts": LA.STATS["action_timeouts"],
         "recovered": LA.STATS["recovered"], "stalls": LA.STATS["stalls"],
         "empty_rate": f"{(LA.STATS['empty']/calls if calls else 0):.3f}",
         "max_tokens": LA.MAX_TOKENS, "model_dead": int(bool(model_dead)),
@@ -457,12 +470,20 @@ def write_health(sid, harness, model, used, budget, model_dead,
         # makes that testable instead of anecdotal.
         "unparseable": unparseable, "lenient": lenient,
         "parse_ok_rate": f"{(1 - unparseable/calls) if calls else 0:.3f}",
+        # transient (503 ResourceExhausted) retries sleep 5s inside gaps
+        # exactly like 429s -- same fix as llm_agent.write_health.
         "clean": int(LA.STATS["empty"] == 0 and LA.STATS["stalls"] == 0
-                     and LA.STATS["rate_limited"] == 0 and not model_dead),
+                     and LA.STATS["rate_limited"] == 0
+                     and LA.STATS["transient"] == 0
+                     and LA.STATS["action_timeouts"] <=
+                         float(os.environ.get(
+                             "CHARWEB_MAX_TIMEOUT_RATE", "0.05"))
+                         * max(used, 1)
+                     and not model_dead),
     }
     try:
-        new = not os.path.exists(LA.HEALTH_CSV)
-        with open(LA.HEALTH_CSV, "a", newline="", encoding="utf-8") as fh:
+        new = not os.path.exists(PERCEPT_HEALTH_CSV)
+        with open(PERCEPT_HEALTH_CSV, "a", newline="", encoding="utf-8") as fh:
             w = csv.DictWriter(fh, fieldnames=list(row))
             if new:
                 w.writeheader()
@@ -508,8 +529,13 @@ def main():
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=args.headless)
         ctx = browser.new_context(viewport=VIEWPORT)
-        ctx.set_extra_http_headers(LA.build_run_headers())
+        LA.apply_run_context(ctx)
         page = ctx.new_page()
+        # A stale-index click otherwise waits the full 30s default and
+        # leaves a dead gap in the timing features. 8s is long enough for a
+        # real interaction and short enough that a miss is not an artefact.
+        # Applied to every mode, so it is a constant rather than a signal.
+        page.set_default_timeout(8000)
 
         account = f"{args.username}_{os.urandom(3).hex()}"
         if not LA.scripted_signup(page, site, account):
@@ -561,6 +587,7 @@ def main():
             try:
                 act(page, a, args.mode, axnodes, site)
             except PWTimeout:
+                LA.STATS["action_timeouts"] += 1
                 print(f"[{step}] action timed out")
             except Exception as e:
                 print(f"[{step}] action failed: {str(e)[:110]}")

@@ -15,6 +15,7 @@ Set the env vars before launching a harness, e.g.:
 Anything left unset is simply omitted; adversarial_condition then falls back
 to its 'clean' default on the server.
 """
+import json
 import os
 
 _ENV_TO_HEADER = {
@@ -59,3 +60,37 @@ def build_run_cookies(url):
     return [{"name": cookie, "value": os.environ[env], "url": url}
             for env, cookie in _ENV_TO_COOKIE.items()
             if os.environ.get(env)]
+
+
+def apply_run_context(context, url=None):
+    """Attach attribution labels -- and, when enabled, the Phase-2 tamper layer
+    -- to a Playwright context.
+
+    Three things every harness needs and which were previously done in only one
+    of them:
+
+      1. X-* headers (the primary label path).
+      2. cw_* cookies. Headers are NOT attached to sendBeacon and are unreliable
+         on the page-teardown keepalive flush, so a fast-navigating harness whose
+         events all flush on page-hide was being recorded unlabelled.
+      3. window.__CHARWEB_TAMPER, injected via add_init_script so it is defined
+         BEFORE track.js parses. Only set when CHARWEB_TAMPER is in the
+         environment, so clean collection is untouched.
+
+    `url` defaults to CHARWEB_URL, so call sites do not need to thread their own
+    argument through.
+    """
+    context.set_extra_http_headers(build_run_headers())
+    target = url or os.environ.get("CHARWEB_URL", "https://charweb.net")
+    cookies = build_run_cookies(target)
+    if cookies:
+        try:
+            context.add_cookies(cookies)
+        except Exception as e:          # a page (not context) has no add_cookies
+            print(f"[run_labels] cookie labels skipped: {e}")
+    mode = os.environ.get("CHARWEB_TAMPER")
+    if mode:
+        context.add_init_script(
+            f"window.__CHARWEB_TAMPER = {json.dumps(mode)};")
+        print(f"[run_labels] TAMPER ACTIVE: {mode}")
+    return context
