@@ -35,6 +35,11 @@ Next: H1 crossed subset -> M4 write-up (abstract + poster).
 
 ## Outstanding
 - Rotate NVIDIA key (exposed in chat repeatedly)
-- sshd: ClientAliveInterval 30 / ClientAliveCountMax 120
-- Untracked SQLite backups (*.db.bak.*, *.db.old_orphaned_chain) contain
-  real emails + password hashes — gitignore or delete before `git add -A`
+- Rotate SECRET_KEY if the GitHub repo was ever public (old commits with the
+  SQLite backups may still be served by hash / forks until GitHub support GCs them)
+- VPS: `git reflog expire --expire=now --all && git gc --prune=now`; confirm the
+  nightly DB backup actually writes to /srv/backups (it was empty 2026-10-03)
+- Untrack logs/Charweb.log.* (tracked, churns on every rotation)
+- Local SQLite backups (*.db.bak.*, *.db.old_orphaned_chain) are gitignored and
+  gone from GitHub history (rewritten 2026-10-03) but still contain real emails
+  + password hashes on disk — delete when no longer needed
