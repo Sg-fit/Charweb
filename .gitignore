@@ -71,3 +71,7 @@ REPO_DELTA.md
 
 # generated poster/write-up figures (rebuild: python research/make_figures.py)
 figures/
+
+# M4 planning/draft docs: contain personal/identifying detail (school, location). Local only.
+M4_*.md
+PROJECT_STATUS.md
