@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SQLite ONLY (local copies). Production is PostgreSQL -- use backup_pg.sh.
 # Nightly SQLite backup. Uses .backup rather than cp because the database is
 # live and WAL-mode -- copying the file directly can capture a torn state.
 set -euo pipefail

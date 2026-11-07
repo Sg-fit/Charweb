@@ -38,7 +38,8 @@ Browser (human or agent)
 track.js (client-side, real timestamps)
       │  batched JSON
       ▼
-/api/track  ──────────────►  SQLite (TrackedAction table)
+/api/track  ──────────────►  database (TrackedAction table; PostgreSQL in
+                              production, SQLite locally)
                                     │
                                     ▼
                     task_labeling.py (event → task-type + session)

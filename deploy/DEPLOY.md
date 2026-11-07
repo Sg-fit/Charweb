@@ -46,7 +46,7 @@ sudo systemctl reload ssh
 sudo ufw allow 22,80,443/tcp && sudo ufw enable
 sudo apt update && sudo apt install -y \
     python3-venv python3-dev build-essential \
-    nginx git certbot python3-certbot-nginx sqlite3 tcpdump
+    nginx git certbot python3-certbot-nginx postgresql postgresql-client tcpdump
 sudo apt install -y unattended-upgrades
 ```
 
@@ -73,19 +73,34 @@ FLASK_APP=app.wsgi:app
 
 ## 5. Database
 
+**Production runs PostgreSQL, not SQLite.** SQLite is only for local copies and
+old exports. Create the role and database, then point the app at it:
+
 ```bash
-scp instance/app.db charweb@<vps>:/srv/charweb/instance/app.db   # from your machine
-sqlite3 /srv/charweb/instance/app.db "PRAGMA journal_mode=WAL;"
-cd /srv/charweb && ./venv/bin/flask db upgrade
+PW=$(python3 -c 'import secrets;print(secrets.token_hex(24))')
+sudo -u postgres psql -c "CREATE USER charweb WITH PASSWORD '$PW';"
+sudo -u postgres createdb -O charweb charweb
+# /etc/charweb.env (mode 600, never committed):
+#   DATABASE_URL=postgresql://charweb:<PW>@localhost:5432/charweb
+cd /srv/charweb && set -a; . /etc/charweb.env; set +a
+export CHARWEB_LOG_DIR=/tmp/charweb-analysis      # see CLAUDE.md -- mandatory
+./venv/bin/flask db upgrade
 ```
+
+Do not run `ALTER USER ... PASSWORD "$(random)"` as a one-liner: the value is
+never shown, `/etc/charweb.env` keeps the old one, and the site loses its
+database on the next restart. Generate into a variable, set it in Postgres and
+write it to the env file in the same command (this cost an outage-in-waiting on
+2026-11-07).
 
 `flask db upgrade` applies both pending migrations:
 `b3f7c21a90de` (per-event `url`) and `c8e2f45b71ac` (client addr/port on
 `UserSession`, the join key for TLS capture).
 
-WAL mode is not optional. With two or three agents plus human traffic, each
-posting a batch to `/api/track` every five seconds, default SQLite locking
-starts throwing write contention.
+Postgres handles the concurrent `/api/track` writers (two or three agents plus
+traffic, a batch every five seconds each) without the locking SQLite needed
+WAL mode for. If you ever run against a local SQLite copy with several writers,
+enable WAL there: `sqlite3 app.db "PRAGMA journal_mode=WAL;"`.
 
 ## 6. Services
 
@@ -123,13 +138,38 @@ they do.
 ## 8. Backups
 
 ```bash
-sudo cp deploy/backup.sh /usr/local/bin/charweb-backup
-sudo crontab -e
-# 0 3 * * *  /usr/local/bin/charweb-backup >> /var/log/charweb/backup.log 2>&1
+sudo cp deploy/backup_pg.sh /usr/local/bin/charweb-backup
+sudo chmod +x /usr/local/bin/charweb-backup && sudo mkdir -p /var/log/charweb
+(sudo crontab -l 2>/dev/null | grep -v charweb-backup; \
+ echo '0 3 * * * /usr/local/bin/charweb-backup >> /var/log/charweb/backup.log 2>&1') | sudo crontab -
+sudo /usr/local/bin/charweb-backup && ls -lh /srv/backups
 ```
 
-Fill in the offsite copy at the bottom of the script. A backup living on the
-same VPS as the database is not a backup.
+`backup_pg.sh` dumps as the `postgres` OS user (no password needed), verifies the
+dump with `pg_restore --list`, locks it to mode 600 and keeps 30 days.
+`deploy/backup.sh` is the old SQLite version, kept only for local copies.
+
+**Prove the backup restores, once, before relying on it:**
+
+```bash
+sudo -u postgres createdb charweb_restore_test && \
+cat /srv/backups/$(ls -t /srv/backups | head -1) | runuser -u postgres -- pg_restore -d charweb_restore_test && \
+sudo -u postgres psql -d charweb_restore_test -c "select count(*) from tracked_action;" ; \
+sudo -u postgres dropdb charweb_restore_test
+```
+
+(Pipe through `cat`: the dump is root-only, so `pg_restore` run as `postgres`
+cannot open it directly.) Last verified 2026-11-07: 6.7 MB, 309,378 rows.
+
+A backup living on the same VPS as the database is not a backup. The VPS cannot
+reach your PC, so pull copies from the PC (PowerShell), outside the repo folder:
+
+```powershell
+mkdir C:\Users\charl\charweb-db-backups
+scp "root@<vps>:/srv/backups/charweb-*.dump" C:\Users\charl\charweb-db-backups\
+```
+
+These dumps contain real emails and password hashes.
 
 ## 9. TLS capture
 

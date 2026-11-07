@@ -16,6 +16,9 @@
 > - **Phase 0 mostly done:** configurable harness runner and grid driver exist (M0.5);
 >   migrations applied on the VPS (M0.1/M0.4). Still unconfirmed here: M0.2 (`pageload` /
 >   `performance.now()` instrumentation) for Phase III.
+> - **Production DB is PostgreSQL**, not the SQLite files discussed in the open
+>   questions and repo-hygiene notes below (nightly `pg_dump`, restore-tested
+>   2026-11-07).
 > - **E3 (client- vs server-trust, tamper ladder) complete; E4 (mimicry) recommended dropped.**
 > - **Open:** H1 crossed-cell decomposition (`harness x model` interaction share), then
 >   **M4 (abstract + poster), not started -- the real deadline risk.**

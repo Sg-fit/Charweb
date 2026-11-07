@@ -2,6 +2,8 @@
 # Charweb — agent behavioural attribution study (ISEF)
 Site: https://charweb.net | VPS: Hetzner CX22 | code: /srv/charweb
 Zero human subjects. Axes: harness / model / perception.
+DB: PostgreSQL in production (DATABASE_URL in /etc/charweb.env); SQLite only
+for local copies. Nightly pg_dump 03:00 -> /srv/backups (30 days, mode 600).
 
 ## Rules for Claude
 - Save tokens. Follow instructions only. Explain only when asked.
