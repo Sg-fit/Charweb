@@ -29,11 +29,14 @@ export CHARWEB_LOG_DIR=/tmp/charweb-analysis
 ./venv/bin/python research/<script>.py
 
 ## Status
-M1 closed (labeler repaired, kappa 0.863). M2 done. M3 done (CIs, LOTO).
-Phase 2 E3 done (4-rung tamper ladder, rung 4 rule-undetectable, no
-measurable degradation). H1 variance decomposition run; crossed subset
-pending. E4 recommended dropped.
-Next: H1 crossed subset -> M4 write-up (abstract + poster).
+M1 closed (labeler repaired, kappa 0.863, intra-annotator). M2 done. M3 done
+(CIs, LOTO). Phase 2 E3 done (4-rung tamper ladder, rung 4 rule-undetectable,
+no measurable degradation at +/-0.04). H1 DONE: crossed 2x2 (n=210) gives
+harness x model interaction 0.7% of PC1, 95% CI [0.0%, 4.3%] -- see RESULTS.md
+4.3. E4 recommended dropped (future work, H7 prediction only).
+Next: ISEF forms/compliance (BLOCKING, see M4_PLAN.md) -> limitations panel ->
+abstract -> figures (python research/make_figures.py) -> poster.
+Source of truth for every number: RESULTS.md. Phase 3: PHASE3_STATUS.md.
 
 ## Outstanding
 - Rotate NVIDIA key (exposed in chat repeatedly)

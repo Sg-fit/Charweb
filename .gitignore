@@ -68,3 +68,6 @@ diag.txt
 # git bundles (VPS -> laptop transfers)
 *.bundle
 REPO_DELTA.md
+
+# generated poster/write-up figures (rebuild: python research/make_figures.py)
+figures/
