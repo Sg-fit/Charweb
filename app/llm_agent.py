@@ -454,7 +454,27 @@ def write_health(session_uid, args, model, used, model_dead=False):
               "cannot be excluded by health later.")
 
 
+# Phase 3: links each model call to the Charweb session that produced it.
+# A timestamp join was considered and rejected -- this project has already been
+# burned by a join that named no session (see the note above write_health).
+_CTX = {"sid": None, "step": -1, "context": None}
+
+
+def _p3_sid():
+    """Resolve session_uid once the Flask cookie exists, then cache it."""
+    if _CTX["sid"]:
+        return _CTX["sid"]
+    ctx = _CTX.get("context")
+    if ctx is not None:
+        try:
+            _CTX["sid"] = session_uid_from_cookies(ctx) or None
+        except Exception:
+            pass
+    return _CTX["sid"] or ""
+
+
 def ask_model(client, model, instruction, url, elements, history):
+    _CTX["step"] += 1
     system = instruction + "\n\n" + ACTION_SPEC
     listing = "\n".join(
         f'[{e["index"]}] <{e["tag"]}{"/"+e["type"] if e["type"] else ""}> '
@@ -475,7 +495,9 @@ def ask_model(client, model, instruction, url, elements, history):
                 model=model,
                 messages=[{"role": "system", "content": system},
                           {"role": "user", "content": user}],
-                temperature=0.7, max_tokens=MAX_TOKENS)
+                temperature=0.7, max_tokens=MAX_TOKENS,
+                extra_headers={"X-CW-Session": _p3_sid(),
+                               "X-CW-Step": str(_CTX["step"])})
             choice = resp.choices[0]
             content = choice.message.content
 
@@ -700,6 +722,7 @@ def run():
         browser = p.chromium.launch(headless=args.headless)
         context = browser.new_context(viewport={"width": 1280, "height": 800})
         apply_run_context(context)
+        _CTX["context"] = context   # Phase 3: lets _p3_sid() read the uid
         page = context.new_page()
 
         # Unique account per run so registration never collides with a prior run.
