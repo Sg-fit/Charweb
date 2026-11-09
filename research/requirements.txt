@@ -8,3 +8,5 @@
 # TLS scripts against an already-exported CSV, without the full app install.
 dpkt==1.9.8
 pandas==3.0.3
+matplotlib
+scikit-learn
